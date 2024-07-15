@@ -18,6 +18,15 @@ void init_fluid(Fluid *fluid, int width, int height, float diffusinon_rate, floa
     fluid->updated_v = calloc(fluid->num_cells, sizeof(vector2));
 }
 
+void delete_fluid(Fluid *fluid){
+    free(fluid->density);
+    free(fluid->pressure);
+    free(fluid->updated_density);
+    free(fluid->v);
+    free(fluid->updated_v);
+    free(fluid->density_sources);
+}
+
 int check_allocation(Fluid *fluid){
     if(NULL == fluid->pressure) return 1;
     if(NULL == fluid->density) return 2;
@@ -26,6 +35,26 @@ int check_allocation(Fluid *fluid){
     if(NULL == fluid->v) return 5;
     if(NULL == fluid->updated_v) return 6;
     return 0;
+}
+
+void randomize_density(Fluid *fluid, float max_density){
+    for(int i = 0; i < fluid->num_cells; i++){
+        fluid->density[i] = (float)rand()/(float)(RAND_MAX/max_density);
+    }
+    fluid->current_max_density = max_density;
+}
+
+void randomize_velocity_field(Fluid *fluid, float min_v, float max_v){
+    for(int i = 0; i < fluid->num_cells; i++){
+        fluid->v[i].x = (float)rand()/(float)(RAND_MAX/(max_v - min_v)) + min_v;
+        fluid->v[i].y = (float)rand()/(float)(RAND_MAX/(max_v - min_v)) + min_v;
+    }
+}
+
+void swap_pointers(float *a, float *b){
+    float *temp = a;
+    a = b;
+    b = temp;
 }
 
 // Simulation
@@ -41,6 +70,7 @@ void handle_diffusion(Fluid *fluid){
                 fluid->updated_density[x + y * w] = (fluid->density[x + y * w] + a * (fluid->density[x - 1 + y * w] + 
                                             fluid->density[x + 1 + y * w] + fluid->density[x + (y - 1) * w] +
                                              fluid->density[x + (y + 1) * w])) / (1 + 4 * a);
+                //if(fluid->current_max_density < fluid->updated_density[x + y * w]) fluid->current_max_density = fluid->updated_density[x + y * w];
             }
         }
         // handle bounds;
@@ -57,8 +87,8 @@ void handle_advection(Fluid *fluid){
     
     for(i = 1; i <= fluid->width; i++){
         for(j = 1; j <= fluid->height; j++){
-            x = i - dt0 * fluid->v[i + y * w].x;
-            y = j - dt0 * fluid->v[i + y * w].y;
+            x = i - dt0 * fluid->v[i + j * w].x;
+            y = j - dt0 * fluid->v[i + j * w].y;
 
             if(x < 0.5) x = 0.5;
             if(x > fluid->width + 0.5) x = fluid->width + 0.5;
@@ -74,9 +104,23 @@ void handle_advection(Fluid *fluid){
             s0 = 1 - s1;
             t1 = y - j0;
             t0 = 1 - t1;
-            fluid->updated_density[i + y * w] = s0 * (t0 * fluid->density[i0 + j0 * w] + t1 * fluid->density[i0 + j1 * w]+
-                                                      t0 * fluid->density[i1 + j0 * w] + t1 * fluid->density[i1 + j0 * w]);
+            fluid->updated_density[i + j * w] = s0 * (t0 * fluid->density[i0 + j0 * w] + t1 * fluid->density[i0 + j1 * w] + t0 * fluid->density[i1 + j0 * w] + t1 * fluid->density[i1 + j0 * w]);
+            //if(fluid->updated_density[i + j * w] > fluid->current_max_density) fluid->current_max_density = fluid->updated_density[i + j * w];
         }
     }
     // handle bounds;
+}
+
+void update_density(Fluid *fluid){
+    //sources
+    handle_diffusion(fluid);
+    swap_pointers(fluid->density, fluid->updated_density);
+    handle_advection(fluid);
+    swap_pointers(fluid->density, fluid->updated_density);
+    printf("%f\n", fluid->density[1234]);
+}
+
+
+void update_fluid_state(Fluid *fluid){
+    update_density(fluid);
 }

@@ -12,7 +12,7 @@ typedef struct cell{
     float pressure;
     float density;
     vector2 v;
-} cell; 
+} cell; //used in initial approach, changed for cache performance
 
 typedef struct Fluid{
     int width;
@@ -35,13 +35,23 @@ typedef struct Fluid{
     float current_max_density;
     float diffusion_rate;
 } Fluid;
-// !!! for performance instead of memcpy swap pointers !!!
+
 
 // Utils
 void init_fluid(Fluid *fluid, int width, int height, float diffusinon_rate, float dt);
+void delete_fluid(Fluid *fluid);
 int check_allocation(Fluid *fluid);
+void randomize_density(Fluid *fluid, float max_density);
+void randomize_velocity_field(Fluid *fluid, float min_v, float max_v);
+void swap_pointers(float *a, float *b);
 
 // Simulation
 void handle_sources(Fluid *fluid);
 void handle_diffusion(Fluid *fluid);
 void handle_advection(Fluid *fluid);
+
+void update_density(Fluid *fluid);
+
+void update_fluid_state(Fluid *fluid);
+
+//current to do add velocity field and updating max_density

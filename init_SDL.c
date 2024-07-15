@@ -41,7 +41,7 @@ App* init_app(){
     return app;
 }
 
-bool update_app(App *app){
+bool update_app(App *app, Fluid *fluid){
 
     // We calculate current FPS, from time elapsed, if not enough time elapsed since last time
     // image got refreshed we skip it to go calculate physics for more accurate results.
@@ -49,6 +49,7 @@ bool update_app(App *app){
     if(curr_fps < app->fps){
         printf("FPS: %f\n", curr_fps);
         // get data from simulation to draw an image
+        update_graphics(app, fluid);
         write_buffer_to_texture(app);
         SDL_RenderClear(app->renderer);
         SDL_RenderCopy(app->renderer, app->texture, NULL, NULL);
@@ -82,7 +83,19 @@ void write_buffer_to_texture(App *app){
     SDL_UnlockTexture(app->texture);
 }
 
-void update_graphics(App *app){
+void update_graphics(App *app, Fluid *fluid){
+    int chunk_width = WINDOW_WIDTH / fluid->width;
+    int chunk_height = WINDOW_HEIGHT / fluid->height;
+
+    for(int i = 0; i < fluid->width; i++){
+        for(int j = 0; j < fluid->height; j++){
+            for(int x = 0; x < chunk_width; x++){
+                for(int y = 0; y < chunk_height; y++){
+                    app->buffer[i * chunk_width + x + (y + j * chunk_height) * WINDOW_WIDTH] = 0xFF00 * fluid->density[i + j * fluid->width] / fluid->current_max_density + 0xFF;
+                }
+            }
+        }
+    }
     
 }
 

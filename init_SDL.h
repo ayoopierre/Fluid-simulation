@@ -22,7 +22,7 @@ typedef struct{
 } App;
 
 App *init_app();
-bool update_app(App *app);
+bool update_app(App *app, Fluid *fluid);
 void close_app(App *app);
 void write_buffer_to_texture(App *app);
-void update_graphics(App *app);
+void update_graphics(App *app, Fluid *fluid);
