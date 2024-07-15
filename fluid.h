@@ -12,7 +12,7 @@ typedef struct cell{
     float pressure;
     float density;
     vector2 v;
-} cell; //used in initial approach, changed for cache performance
+} cell; 
 
 typedef struct Fluid{
     int width;
