@@ -28,12 +28,6 @@ int check_allocation(Fluid *fluid){
     return 0;
 }
 
-//void swap_pointers(float **a, float **b){
-//    float **c = *a;
-//    **a = **b;
-//    **b = *c;
-//}
-
 // Simulation
 
 
