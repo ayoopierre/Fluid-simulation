@@ -35,13 +35,11 @@ typedef struct Fluid{
     float current_max_density;
     float diffusion_rate;
 } Fluid;
-// WAŻNE  w symulacji po updatcie v oraz density zamiast robienia memcpy, zamieniamy ptr;
+// !!! for performance instead of memcpy swap pointers !!!
 
 // Utils
 void init_fluid(Fluid *fluid, int width, int height, float diffusinon_rate, float dt);
 int check_allocation(Fluid *fluid);
-//void swap_pointers(float **a, float **b);
-//void swap_pointers(vector2 **a, vector2 **b);
 
 // Simulation
 void handle_sources(Fluid *fluid);
