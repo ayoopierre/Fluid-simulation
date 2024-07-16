@@ -7,7 +7,7 @@ int main(int argc, char **argv){
     if(!app) return EXIT_FAILURE;
 
     Fluid fluid;
-    init_fluid(&fluid, 80, 60, 0.5, 0.5);
+    init_fluid(&fluid, 80, 60, 0.5, 0.00005);
     if(check_allocation(&fluid) != 0) return EXIT_FAILURE;
 
     randomize_density(&fluid, 5.0);

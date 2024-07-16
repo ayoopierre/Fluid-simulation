@@ -51,10 +51,10 @@ void randomize_velocity_field(Fluid *fluid, float min_v, float max_v){
     }
 }
 
-void swap_pointers(float *a, float *b){
-    float *temp = a;
-    a = b;
-    b = temp;
+void swap_pointers(float **a, float **b){
+    float *temp = *a;
+    *a = *b;
+    *b = temp;
 }
 
 // Simulation
@@ -114,10 +114,9 @@ void handle_advection(Fluid *fluid){
 void update_density(Fluid *fluid){
     //sources
     handle_diffusion(fluid);
-    swap_pointers(fluid->density, fluid->updated_density);
+    swap_pointers(&fluid->density, &fluid->updated_density);
     handle_advection(fluid);
-    swap_pointers(fluid->density, fluid->updated_density);
-    printf("%f\n", fluid->density[1234]);
+    swap_pointers(&fluid->density, &fluid->updated_density);
 }
 
 

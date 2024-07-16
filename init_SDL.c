@@ -77,7 +77,7 @@ void write_buffer_to_texture(App *app){
     uint32_t *pixel;
     int pitch;
 
-    // In case that lock fails we omit copying data to texture.
+    // In case that lock fails we omit copying data to texture (this could crash program idk).
     if(SDL_LockTexture(app->texture, NULL, (void **)&pixel, &pitch)) return;
     memcpy(pixel, app->buffer, sizeof(uint32_t) * WINDOW_HEIGHT * WINDOW_WIDTH);
     SDL_UnlockTexture(app->texture);

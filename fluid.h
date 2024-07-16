@@ -43,7 +43,7 @@ void delete_fluid(Fluid *fluid);
 int check_allocation(Fluid *fluid);
 void randomize_density(Fluid *fluid, float max_density);
 void randomize_velocity_field(Fluid *fluid, float min_v, float max_v);
-void swap_pointers(float *a, float *b);
+void swap_pointers(float **a, float **b);
 
 // Simulation
 void handle_sources(Fluid *fluid);
