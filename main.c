@@ -7,24 +7,19 @@ int main(int argc, char **argv){
     if(!app) return EXIT_FAILURE;
 
     Fluid fluid;
-    init_fluid(&fluid, 80, 60, 0.5, 0.5,0.00005);
-    if(check_allocation(&fluid) != 0) return EXIT_FAILURE;
-
-    randomize_density(&fluid, 5.0);
-    randomize_velocity_field(&fluid, -1.0, 2.0);
+    init_fluid(&fluid, 60, 80, 0.1, 0.1, 0.01);
+    
+    if(check_alloc(&fluid)) return EXIT_FAILURE;
 
     while(true){
         //update_physics
-
         update_fluid_state(&fluid);
-
         if(!update_app(app, &fluid)){
             break;
         }
     }
 
     close_app(app);
-    delete_fluid(&fluid);
 
     return EXIT_SUCCESS;
 }

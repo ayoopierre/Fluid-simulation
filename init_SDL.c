@@ -37,6 +37,8 @@ App* init_app(){
     }
 
     app->buffer = malloc(sizeof(uint32_t) * WINDOW_HEIGHT * WINDOW_WIDTH);
+    app->last_x_mouse = -1;
+    app->last_y_mouse = -1;
 
     return app;
 }
@@ -49,28 +51,13 @@ bool update_app(App *app, Fluid *fluid){
     if(curr_fps < app->fps){
         printf("FPS: %f\n", curr_fps);
         // get data from simulation to draw an image
-        update_graphics(app, fluid);
         write_buffer_to_texture(app);
         SDL_RenderClear(app->renderer);
         SDL_RenderCopy(app->renderer, app->texture, NULL, NULL);
         SDL_RenderPresent(app->renderer);
         app->last_tick = SDL_GetPerformanceCounter();
     }
-
-
-    // to be moved into handle_input function
-    SDL_Event event;
-    while (SDL_PollEvent(&event)){
-        switch (event.type)
-        {
-             case SDL_QUIT:
-                return false;
-            default:
-                break;
-        }
-    }
-
-    return true;
+    return handle_input(app, fluid);
 }
 
 void write_buffer_to_texture(App *app){
@@ -89,14 +76,51 @@ void update_graphics(App *app, Fluid *fluid){
 
     for(int i = 0; i < fluid->width; i++){
         for(int j = 0; j < fluid->height; j++){
+            Uint32 color = 0xFFFFFF00;
+            color += 255 * fluid->density[i + j * fluid->width];
             for(int x = 0; x < chunk_width; x++){
                 for(int y = 0; y < chunk_height; y++){
-                    app->buffer[i * chunk_width + x + (y + j * chunk_height) * WINDOW_WIDTH] = 0xFF00 * fluid->density[i + j * fluid->width] / fluid->current_max_density + 0xFF;
+                    app->buffer[x + i * chunk_width + (y + j) * WINDOW_WIDTH] = color;
                 }
             }
         }
     }
     
+    
+}
+
+bool handle_input(App *app, Fluid *fluid){
+    int x_mouse;
+    int y_mouse;
+    Uint32 state = SDL_GetMouseState(&x_mouse, &y_mouse);
+    if(-1 != app->last_x_mouse || -1 != app->last_y_mouse){
+        if(1 == state){
+            float v_x = (x_mouse - app->last_x_mouse) / 5.2;
+            float v_y = (y_mouse - app->last_y_mouse) / 5.2;
+            int x_pos = fluid->width * ((float)x_mouse / WINDOW_WIDTH);
+            int y_pos = fluid->height * ((float)y_mouse / WINDOW_HEIGHT);
+            printf("%d, %d\n", x_pos, y_pos);
+            app->buffer[x_mouse + y_mouse * WINDOW_WIDTH] = 0xFF0000FF;
+            add_velocity(fluid, x_pos, y_pos, v_x, v_y);
+            add_density(fluid, x_pos, y_pos, 0.5);
+        }
+    }
+
+    app->last_x_mouse = x_mouse;
+    app->last_y_mouse = y_mouse;
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event)){
+        switch (event.type)
+        {
+            case SDL_QUIT:
+                return false;
+            default:
+                break;
+        }
+    }
+
+    return true;
 }
 
 void close_app(App *app){
