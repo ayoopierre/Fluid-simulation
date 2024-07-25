@@ -50,6 +50,8 @@ bool update_app(App *app, Fluid *fluid){
     float curr_fps = (float)SDL_GetPerformanceFrequency() / (SDL_GetPerformanceCounter() - app->last_tick); 
     if(curr_fps < app->fps){
         printf("FPS: %f\n", curr_fps);
+        update_fluid_state(fluid);
+        update_graphics(app, fluid);
         // get data from simulation to draw an image
         write_buffer_to_texture(app);
         SDL_RenderClear(app->renderer);
@@ -64,7 +66,7 @@ void write_buffer_to_texture(App *app){
     uint32_t *pixel;
     int pitch;
 
-    // In case that lock fails we omit copying data to texture (this could crash program idk).
+    // In case that lock fails skip copying data to texture (this could crash program idk).
     if(SDL_LockTexture(app->texture, NULL, (void **)&pixel, &pitch)) return;
     memcpy(pixel, app->buffer, sizeof(uint32_t) * WINDOW_HEIGHT * WINDOW_WIDTH);
     SDL_UnlockTexture(app->texture);
@@ -76,17 +78,16 @@ void update_graphics(App *app, Fluid *fluid){
 
     for(int i = 0; i < fluid->width; i++){
         for(int j = 0; j < fluid->height; j++){
-            Uint32 color = 0xFFFFFF00;
-            color += 255 * fluid->density[i + j * fluid->width];
+            Uint32 color = 0x0000FFFF;
+            //if(fluid->updated_density[i + fluid->width * j] != 0) color = 0xFF0000FF;
+            color -= 0xFF00 * fluid->updated_density[i + fluid->width * j];
             for(int x = 0; x < chunk_width; x++){
                 for(int y = 0; y < chunk_height; y++){
-                    app->buffer[x + i * chunk_width + (y + j) * WINDOW_WIDTH] = color;
+                    app->buffer[x + i * chunk_width + (y + j * chunk_width) * WINDOW_WIDTH] = color;
                 }
             }
         }
     }
-    
-    
 }
 
 bool handle_input(App *app, Fluid *fluid){
@@ -99,10 +100,9 @@ bool handle_input(App *app, Fluid *fluid){
             float v_y = (y_mouse - app->last_y_mouse) / 5.2;
             int x_pos = fluid->width * ((float)x_mouse / WINDOW_WIDTH);
             int y_pos = fluid->height * ((float)y_mouse / WINDOW_HEIGHT);
-            printf("%d, %d\n", x_pos, y_pos);
             app->buffer[x_mouse + y_mouse * WINDOW_WIDTH] = 0xFF0000FF;
             add_velocity(fluid, x_pos, y_pos, v_x, v_y);
-            add_density(fluid, x_pos, y_pos, 0.5);
+            add_density(fluid, x_pos, y_pos, 10);
         }
     }
 

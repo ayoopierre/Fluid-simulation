@@ -6,7 +6,7 @@
 
 #define WINDOW_HEIGHT 600
 #define WINDOW_WIDTH 800
-#define FPS 60
+#define FPS 20
 
 //TODO -> change name to smth like handle_SDL.h
 

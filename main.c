@@ -7,13 +7,13 @@ int main(int argc, char **argv){
     if(!app) return EXIT_FAILURE;
 
     Fluid fluid;
-    init_fluid(&fluid, 60, 80, 0.1, 0.1, 0.01);
+    init_fluid(&fluid, 60, 80, 0.05f, 3.0f, 0.001);
     
     if(check_alloc(&fluid)) return EXIT_FAILURE;
 
     while(true){
         //update_physics
-        update_fluid_state(&fluid);
+        //update_fluid_state(&fluid);
         if(!update_app(app, &fluid)){
             break;
         }
