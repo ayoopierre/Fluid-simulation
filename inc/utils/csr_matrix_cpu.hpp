@@ -13,6 +13,42 @@ class CSRMatrixCPU{
         static std::optional<CSRMatrixCPU> create(int rows, int nnz);
         static std::optional<std::shared_ptr<CSRMatrixCPU>> create_shared(int rows, int nnz);
 
+        inline CSRMatrixCPU(CSRMatrixCPU& other){
+            nnz = other.nnz;
+            rows = other.rows;
+            col = other.col;
+            val = other.val;
+            row_ptr = other.row_ptr;
+        }
+
+        inline CSRMatrixCPU& operator=(CSRMatrixCPU& other){
+            nnz = other.nnz;
+            rows = other.rows;
+            col = other.col;
+            val = other.val;
+            row_ptr = other.row_ptr;
+
+            return *this;
+        }
+
+        inline CSRMatrixCPU(CSRMatrixCPU&& other){
+            nnz = other.nnz;
+            rows = other.rows;
+            col = std::move(other.col);
+            val = std::move(other.val);
+            row_ptr = std::move(other.row_ptr);
+        }
+
+        inline CSRMatrixCPU& operator=(CSRMatrixCPU&& other){
+            nnz = other.nnz;
+            rows = other.rows;
+            col = std::move(other.col);
+            val = std::move(other.val);
+            row_ptr = std::move(other.row_ptr);
+
+            return *this;
+        }
+
         inline double get_val(int i, int j){
             if(i < 0 || i >= rows) return 0.0;
 
@@ -47,7 +83,7 @@ class CSRMatrixCPU{
         std::vector<int> col;
         std::vector<double> val;
     private:
-        CSRMatrixCPU();
+        CSRMatrixCPU() {};
 };
 
 #endif

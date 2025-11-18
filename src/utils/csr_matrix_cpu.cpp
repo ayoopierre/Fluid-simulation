@@ -9,7 +9,7 @@ std::optional<CSRMatrixCPU> CSRMatrixCPU::create(int rows, int nnz)
         instance.col.resize(nnz);
         instance.val.resize(nnz);
 
-        instance.rows = rows;
+        instance.rows = rows + 1;
         instance.nnz = nnz;
     }
     catch(const std::exception& e)
@@ -20,7 +20,7 @@ std::optional<CSRMatrixCPU> CSRMatrixCPU::create(int rows, int nnz)
         */
         return std::nullopt;
     }
-    return instance;
+    return std::move(instance);
 }
 
 std::optional<std::shared_ptr<CSRMatrixCPU>> CSRMatrixCPU::create_shared(int rows, int nnz)

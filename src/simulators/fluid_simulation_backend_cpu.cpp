@@ -53,6 +53,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
         for(int i = 0; i < width; i++){
             A->row_ptr[offset + i * j] = FLUID_SIM_LHS1_NNZ * i * j;
             /* Cols of U components */
+            /* Apply  */
             A->col[offset + i * j + 0];
             A->val[offset + i * j + 0];
 

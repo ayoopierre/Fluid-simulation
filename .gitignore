@@ -1,5 +1,5 @@
-.exe
-.o
-.txt
+*.exe
+*.o
+*.txt
 
 .vscode/
