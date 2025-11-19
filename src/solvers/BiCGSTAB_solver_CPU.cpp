@@ -8,7 +8,8 @@ std::optional<BiCGSTABSolverCpu> BiCGSTABSolverCpu::create(int n)
 {
     BiCGSTABSolverCpu instance;
 
-    try{
+    try
+    {
         instance.x.resize(n);
         instance.r.resize(n);
         instance.r_hat.resize(n);
@@ -18,7 +19,8 @@ std::optional<BiCGSTABSolverCpu> BiCGSTABSolverCpu::create(int n)
         instance.s.resize(n);
         instance.t.resize(n);
     }
-    catch(std::exception& e){
+    catch (std::exception &e)
+    {
         return std::nullopt;
     }
 
@@ -28,7 +30,8 @@ std::optional<BiCGSTABSolverCpu> BiCGSTABSolverCpu::create(int n)
 std::optional<std::shared_ptr<BiCGSTABSolverCpu>> BiCGSTABSolverCpu::create_shared(int n)
 {
     std::shared_ptr<BiCGSTABSolverCpu> instance = std::shared_ptr<BiCGSTABSolverCpu>(new BiCGSTABSolverCpu());
-    try{
+    try
+    {
         instance->x.resize(n);
         instance->r.resize(n);
         instance->r_hat.resize(n);
@@ -38,7 +41,8 @@ std::optional<std::shared_ptr<BiCGSTABSolverCpu>> BiCGSTABSolverCpu::create_shar
         instance->s.resize(n);
         instance->t.resize(n);
     }
-    catch(std::exception& e){
+    catch (std::exception &e)
+    {
         return std::nullopt;
     }
 
@@ -59,7 +63,8 @@ double BiCGSTABSolverCpu::solve(CSRMatrixCPU &A, std::vector<double> &b, int ite
     /* Set p = r */
     std::memcpy(p.data(), r.data(), sizeof(double) * p.size());
     /* Main solution loop */
-    for(int i = 0; i < iter; i++){
+    for (int i = 0; i < iter; i++)
+    {
         vec_CSRmat_prod(A, p, v);
         alpha = rho / vec_dot_vec(r_hat, v);
         vec_scale(alpha, p);
@@ -70,7 +75,8 @@ double BiCGSTABSolverCpu::solve(CSRMatrixCPU &A, std::vector<double> &b, int ite
         vec_plus_vec(r, v, s);
         /* Check if s meets expected precisiton */
         prec_sq = vec_dot_vec(s, s);
-        if(prec_sq < prec * prec){
+        if (prec_sq < prec * prec)
+        {
             std::memcpy(x.data(), h.data(), sizeof(double) * x.size());
             return std::sqrt(prec_sq);
         }
@@ -83,7 +89,8 @@ double BiCGSTABSolverCpu::solve(CSRMatrixCPU &A, std::vector<double> &b, int ite
         vec_plus_vec(s, t, r);
         /* Check if residum small enough */
         prec_sq = vec_dot_vec(r, r);
-        if(prec_sq < prec * prec){
+        if (prec_sq < prec * prec)
+        {
             /* x has already solution of requested precision */
             return std::sqrt(prec_sq);
         }
@@ -99,5 +106,56 @@ double BiCGSTABSolverCpu::solve(CSRMatrixCPU &A, std::vector<double> &b, int ite
     }
 
     return std::sqrt(prec_sq);
-}   
+}
 
+BiCGSTABSolverCpu::BiCGSTABSolverCpu(BiCGSTABSolverCpu &other)
+{
+    x = other.x;
+    r = other.r;
+    r_hat = other.r_hat;
+    p = other.p;
+    v = other.v;
+    h = other.h;
+    s = other.s;
+    t = other.t;
+}
+
+BiCGSTABSolverCpu &BiCGSTABSolverCpu::operator=(BiCGSTABSolverCpu &other)
+{
+    x = other.x;
+    r = other.r;
+    r_hat = other.r_hat;
+    p = other.p;
+    v = other.v;
+    h = other.h;
+    s = other.s;
+    t = other.t;
+
+    return *this;
+}
+
+BiCGSTABSolverCpu::BiCGSTABSolverCpu(BiCGSTABSolverCpu &&other)
+{
+    x = std::move(other.x);
+    r = std::move(other.r);
+    r_hat = std::move(other.r_hat);
+    p = std::move(other.p);
+    v = std::move(other.v);
+    h = std::move(other.h);
+    s = std::move(other.s);
+    t = std::move(other.t);
+}
+
+inline BiCGSTABSolverCpu &BiCGSTABSolverCpu::operator=(BiCGSTABSolverCpu &&other)
+{
+    x = std::move(other.x);
+    r = std::move(other.r);
+    r_hat = std::move(other.r_hat);
+    p = std::move(other.p);
+    v = std::move(other.v);
+    h = std::move(other.h);
+    s = std::move(other.s);
+    t = std::move(other.t);
+
+    return *this;
+}

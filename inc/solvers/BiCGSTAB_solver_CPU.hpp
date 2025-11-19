@@ -22,53 +22,12 @@ class BiCGSTABSolverCpu{
         /* Solve linear system using, BiCGSTAB method, returns norm2 of residum vector */
         double solve(CSRMatrixCPU& A, std::vector<double>& b, int iter, double prec);
 
-        inline BiCGSTABSolverCpu(BiCGSTABSolverCpu& other){
-            x = other.x;
-            r = other.r;
-            r_hat = other.r_hat;
-            p = other.p;
-            v = other.v;
-            h = other.h;
-            s = other.s;
-            t = other.t;
-        }
+        /* We need custom assigment to avoid copies */
+        BiCGSTABSolverCpu(BiCGSTABSolverCpu& other);
+        BiCGSTABSolverCpu& operator=(BiCGSTABSolverCpu& other);
 
-        inline BiCGSTABSolverCpu& operator=(BiCGSTABSolverCpu& other){
-            x = other.x;
-            r = other.r;
-            r_hat = other.r_hat;
-            p = other.p;
-            v = other.v;
-            h = other.h;
-            s = other.s;
-            t = other.t;
-
-            return *this;
-        }
-
-        inline BiCGSTABSolverCpu(BiCGSTABSolverCpu&& other){
-            x = std::move(other.x);
-            r = std::move(other.r);
-            r_hat = std::move(other.r_hat);
-            p = std::move(other.p);
-            v = std::move(other.v);
-            h = std::move(other.h);
-            s = std::move(other.s);
-            t = std::move(other.t);
-        }
-
-        inline BiCGSTABSolverCpu& operator=(BiCGSTABSolverCpu&& other){
-            x = std::move(other.x);
-            r = std::move(other.r);
-            r_hat = std::move(other.r_hat);
-            p = std::move(other.p);
-            v = std::move(other.v);
-            h = std::move(other.h);
-            s = std::move(other.s);
-            t = std::move(other.t);
-
-            return *this;
-        }
+        BiCGSTABSolverCpu(BiCGSTABSolverCpu&& other);
+        BiCGSTABSolverCpu& operator=(BiCGSTABSolverCpu&& other);
 
         std::vector<double> x;
         std::vector<double> r;
@@ -84,6 +43,7 @@ class BiCGSTABSolverCpu{
         double prev_rho;
         double rho;
         double omega;
+        
     private:
         BiCGSTABSolverCpu(){};
 };

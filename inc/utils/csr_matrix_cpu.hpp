@@ -13,69 +13,15 @@ class CSRMatrixCPU{
         static std::optional<CSRMatrixCPU> create(int rows, int nnz);
         static std::optional<std::shared_ptr<CSRMatrixCPU>> create_shared(int rows, int nnz);
 
-        inline CSRMatrixCPU(CSRMatrixCPU& other){
-            nnz = other.nnz;
-            rows = other.rows;
-            col = other.col;
-            val = other.val;
-            row_ptr = other.row_ptr;
-        }
+        /* We need custom assigment to avoid copies */
+        CSRMatrixCPU(CSRMatrixCPU& other);
+        CSRMatrixCPU& operator=(CSRMatrixCPU& other);
 
-        inline CSRMatrixCPU& operator=(CSRMatrixCPU& other){
-            nnz = other.nnz;
-            rows = other.rows;
-            col = other.col;
-            val = other.val;
-            row_ptr = other.row_ptr;
+        CSRMatrixCPU(CSRMatrixCPU&& other);
+        CSRMatrixCPU& operator=(CSRMatrixCPU&& other);
 
-            return *this;
-        }
-
-        inline CSRMatrixCPU(CSRMatrixCPU&& other){
-            nnz = other.nnz;
-            rows = other.rows;
-            col = std::move(other.col);
-            val = std::move(other.val);
-            row_ptr = std::move(other.row_ptr);
-        }
-
-        inline CSRMatrixCPU& operator=(CSRMatrixCPU&& other){
-            nnz = other.nnz;
-            rows = other.rows;
-            col = std::move(other.col);
-            val = std::move(other.val);
-            row_ptr = std::move(other.row_ptr);
-
-            return *this;
-        }
-
-        inline double get_val(int i, int j){
-            if(i < 0 || i >= rows) return 0.0;
-
-            int start = row_ptr[i];
-            int end = row_ptr[i + 1];
-
-            if(end - start < 16){
-                for(int k = start; k < end; k++)
-                    if(col[k] == j)
-                        return val[k];
-                return 0.0;
-            }
-
-            while(start < end){
-                int mid = start + (end - start) / 2;
-
-                if(col[mid] < j){
-                    start = mid + 1;
-                }
-                else{
-                    end = mid;
-                }
-            }
-
-            return (start < row_ptr[i + 1] && col[start] == j) ? val[start] : 0.0;
-        }
-
+        double get_val(int i, int j);
+        
         int nnz;
         int rows;
 

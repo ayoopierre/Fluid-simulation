@@ -8,15 +8,16 @@
 #include "csr_matrix_cpu.hpp"
 
 inline void vec_plus_vec(std::vector<double> &a,
-    std::vector<double> &b,
-    std::vector<double> &c)
+                         std::vector<double> &b,
+                         std::vector<double> &c)
 {
-    for(int i = 0; i < a.size(); i++)
+    for (int i = 0; i < a.size(); i++)
         c[i] = a[i] + b[i];
 }
 
-inline void vec_scale(double scale, std::vector<double> &a){
-    for(int i = 0; i < a.size(); i++)
+inline void vec_scale(double scale, std::vector<double> &a)
+{
+    for (int i = 0; i < a.size(); i++)
         a[i] *= scale;
 }
 
@@ -26,22 +27,25 @@ inline double vec_dot_vec(
 {
     double dot = 0.0f;
 
-    for(int i = 0; i < a.size(); i++)
+    for (int i = 0; i < a.size(); i++)
         dot += a[i] * b[i];
 
     return dot;
 }
 
-inline void copy_a_to_b(std::vector<double> &a, std::vector<double> &b){
+inline void copy_a_to_b(std::vector<double> &a, std::vector<double> &b)
+{
     std::memcpy(b.data(), a.data(), sizeof(double) * a.size());
 }
 
 inline int set_one_on_first_non_zero(std::vector<double> &r,
-    std::vector<double> &r_hat)
+                                     std::vector<double> &r_hat)
 {
     std::fill(r_hat.begin(), r_hat.end(), 0.0f);
-    for(int i = 0; i < r.size(); i++){
-        if(r[i] != 0){
+    for (int i = 0; i < r.size(); i++)
+    {
+        if (r[i] != 0)
+        {
             r_hat[i] = 1.0f;
             return i;
         }
@@ -50,12 +54,14 @@ inline int set_one_on_first_non_zero(std::vector<double> &r,
 }
 
 inline void vec_CSRmat_prod(CSRMatrixCPU &A,
-    std::vector<double> &x,
-    std::vector<double> &b)
+                            std::vector<double> &x,
+                            std::vector<double> &b)
 {
     std::fill(b.begin(), b.end(), 0.0f);
-    for(int row_index = 0; row_index < A.rows; row_index++){
-        for(int col_index = A.row_ptr[row_index]; col_index < A.row_ptr[row_index + 1]; col_index++){
+    for (int row_index = 0; row_index < A.rows; row_index++)
+    {
+        for (int col_index = A.row_ptr[row_index]; col_index < A.row_ptr[row_index + 1]; col_index++)
+        {
             b[row_index] += A.val[col_index] * x[A.col[col_index]];
         }
     }
