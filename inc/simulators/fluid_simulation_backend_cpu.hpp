@@ -5,6 +5,7 @@
 
 #include "fluid_simulation_backend.hpp"
 #include "csr_matrix_cpu.hpp"
+#include "BiCGSTAB_solver_CPU.hpp"
 
 #define FLUID_SIM_LHS1_NNZ 11
 #define FLUID_SIM_LHS2_NNZ 11
@@ -30,8 +31,18 @@ class FluidSimulationBackendCPU : FluidSimulationBackend{
         void update_pressure();
         void write_heatmap();
 
+        std::shared_ptr<BiCGSTABSolverCpu> solver;
+
         std::shared_ptr<CSRMatrixCPU> A;
         std::vector<double> RHS;
+
+        double mu;
+        double lambda;
+        double dx;
+        double dy;
+        double dx_sq;
+        double dy_sq;
+        double cs_sq;
 };
 
 #endif
