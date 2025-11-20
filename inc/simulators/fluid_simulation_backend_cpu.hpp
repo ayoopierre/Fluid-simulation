@@ -24,12 +24,6 @@ class FluidSimulationBackendCPU : FluidSimulationBackend
 {
 public:
     FluidSimulationBackendCPU(int x_resolution, int y_resolution);
-    ~FluidSimulationBackendCPU()
-    {
-        delete[] u_type_stencil;
-        delete[] v_type_stencil;
-        delete[] rho_type_stencil;
-    }
 
     void step(double dt);
 
@@ -47,6 +41,8 @@ protected:
 
     std::shared_ptr<CSRMatrixCPU> A;
     std::vector<double> RHS;
+    
+    std::vector<bool> is_wall;
 
     double dt;
     double D;  /* Diffusion rate */
@@ -59,14 +55,14 @@ protected:
     double cs_sq; /* Squared speed of sound */
 
     /* Base discretized Navier-Stokes stencil */
-    StencilCpu *u_type_stencil;
-    StencilCpu *v_type_stencil;
-    StencilCpu *rho_type_stencil;
+    std::vector<StencilCpu> u_type_stencil;
+    std::vector<StencilCpu> v_type_stencil;
+    std::vector<StencilCpu> rho_type_stencil;
 
     /* Wall stencils */
-    StencilCpu *wall_u_type_stencil;
-    StencilCpu *wall_v_type_stencil;
-    StencilCpu *wall_rho_type_stencil;
+    std::vector<StencilCpu> wall_u_type_stencil;
+    std::vector<StencilCpu> wall_v_type_stencil;
+    std::vector<StencilCpu> wall_rho_type_stencil;
 };
 
 #endif
