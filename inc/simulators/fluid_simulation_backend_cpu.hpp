@@ -20,6 +20,8 @@
 
 #define AT(i, j) (j * width) + i
 
+#define SKIP_IF_NOT_IN_BOUNDS(i, j) {if( i < 0 || i > width - 1 || j < 0 || j > height) continue;}
+
 class FluidSimulationBackendCPU : FluidSimulationBackend
 {
 public:

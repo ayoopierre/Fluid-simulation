@@ -311,7 +311,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
             for (int p = 0; p < FLUID_SIM_LHS1_NNZ; p++)
             {
                 A->col[idx + p] = u_type_stencil[p].offset + (j + u_type_stencil[p].dj) * width + (i + u_type_stencil[p].di);
-                A->val[idx + p] = *u_type_stencil[p].get_val(i, j);
+                A->val[idx + p] = u_type_stencil[p].get_val(i, j);
             }
         }
     }
@@ -405,7 +405,8 @@ void FluidSimulationBackendCPU::build_CSR_matrix_2()
         for (int i = 0; i < width; i++)
         {
             int off1 = width * height * FLUID_SIM_LHS1_NNZ;
-            int off2 = 2 * off1;
+            int off2 = off1 + width * height * FLUID_SIM_LHS2_NNZ;
+            int p = 0;
 
             if (is_wall[AT(i, j)])
             {
@@ -429,9 +430,10 @@ void FluidSimulationBackendCPU::build_CSR_matrix_2()
                     A->col[off2 + AT(i, j) * FLUID_SIM_LHS1_NNZ],
                     A->col[off2 + (AT(i, j) + 1) * FLUID_SIM_LHS1_NNZ], 0);
 
-                int p = 0;
+                p = 0;
                 for (StencilCpu &s : wall_u_type_stencil)
                 {
+                    SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
                     A->col[AT(i, j) * FLUID_SIM_LHS1_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
                     A->val[AT(i, j) * FLUID_SIM_LHS1_NNZ + p] = s.get_val(i, j);
                     p++;
@@ -440,7 +442,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix_2()
                 p = 0;
                 for (StencilCpu &s : wall_v_type_stencil)
                 {
-                    int off = width * height * FLUID_SIM_LHS1_NNZ;
+                    SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
                     A->col[off1 + AT(i, j) * FLUID_SIM_LHS2_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
                     A->val[off1 + AT(i, j) * FLUID_SIM_LHS2_NNZ + p] = s.get_val(i, j);
                     p++;
@@ -449,6 +451,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix_2()
                 p = 0;
                 for (StencilCpu &s : wall_rho_type_stencil)
                 {
+                    SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
                     A->col[off2 + AT(i, j) * FLUID_SIM_LHS3_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
                     A->val[off2 + AT(i, j) * FLUID_SIM_LHS3_NNZ + p] = s.get_val(i, j);
                     p++;
@@ -456,12 +459,36 @@ void FluidSimulationBackendCPU::build_CSR_matrix_2()
             }
             else
             {
+                /* No need to fill with zeros, since we will alaredy fill out all NNZ fields for given row */
                 /* u-type equation : LHS1 */
+                p = 0;
+                for (StencilCpu &s : u_type_stencil)
+                {
+                    SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
+                    A->col[AT(i, j) * FLUID_SIM_LHS1_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                    A->val[AT(i, j) * FLUID_SIM_LHS1_NNZ + p] = s.get_val(i, j);
+                    p++;
+                }
 
                 /* v_type equation : LHS2 */
+                p = 0;
+                for (StencilCpu &s : v_type_stencil)
+                {
+                    SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
+                    A->col[off1 + AT(i, j) * FLUID_SIM_LHS2_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                    A->val[off1 + AT(i, j) * FLUID_SIM_LHS2_NNZ + p] = s.get_val(i, j);
+                    p++;
+                }
 
                 /* rho_type equation :LHS3 */
-                
+                p = 0;
+                for (StencilCpu &s : v_type_stencil)
+                {
+                    SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
+                    A->col[off2 + AT(i, j) * FLUID_SIM_LHS3_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                    A->val[off2 + AT(i, j) * FLUID_SIM_LHS3_NNZ + p] = s.get_val(i, j);
+                    p++;
+                }
             }
         }
     }
