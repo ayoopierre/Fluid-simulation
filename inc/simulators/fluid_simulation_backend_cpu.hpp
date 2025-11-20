@@ -32,6 +32,7 @@ protected:
 
     void apply_user_input();
     void build_CSR_matrix();
+    void build_CSR_matrix_2();
     void apply_wall_conditions();
     void run_BiCSTAB();
     void update_pressure();
