@@ -1,5 +1,7 @@
 #include "csr_matrix_cpu.hpp"
 
+#include <cstdio>
+
 std::optional<CSRMatrixCPU> CSRMatrixCPU::create(int rows, int nnz)
 {
     CSRMatrixCPU instance;
@@ -25,7 +27,7 @@ std::optional<CSRMatrixCPU> CSRMatrixCPU::create(int rows, int nnz)
 
 std::optional<std::shared_ptr<CSRMatrixCPU>> CSRMatrixCPU::create_shared(int rows, int nnz)
 {
-    std::shared_ptr<CSRMatrixCPU> instance;
+    std::shared_ptr<CSRMatrixCPU> instance = std::shared_ptr<CSRMatrixCPU>(new CSRMatrixCPU);
     try
     {
         instance->row_ptr.resize(rows + 1);
@@ -35,14 +37,16 @@ std::optional<std::shared_ptr<CSRMatrixCPU>> CSRMatrixCPU::create_shared(int row
         instance->rows = rows;
         instance->nnz = nnz;
     }
-    catch (const std::exception &e)
+    catch (...)
     {
         /*
         If reallocation for vector fails std::bad_alloc is thrown,
         catch an do not return instance of an object.
         */
+        std::printf("Failed to create shared CSR object\n");
         return std::nullopt;
     }
+    std::printf("Managed to create shared CSR object\n");
     return instance;
 }
 

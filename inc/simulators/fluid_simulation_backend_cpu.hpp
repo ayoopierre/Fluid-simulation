@@ -7,6 +7,7 @@
 #include "fluid_simulation_backend.hpp"
 #include "csr_matrix_cpu.hpp"
 #include "BiCGSTAB_solver_CPU.hpp"
+#include "stencil_cpu.hpp"
 
 #define FLUID_SIM_LHS1_NNZ 11
 #define FLUID_SIM_LHS2_NNZ 11
@@ -22,12 +23,13 @@
 
 #define SKIP_IF_NOT_IN_BOUNDS(i, j) {if( i < 0 || i > width - 1 || j < 0 || j > height) continue;}
 
-class FluidSimulationBackendCPU : FluidSimulationBackend
+class FluidSimulationBackendCPU : public FluidSimulationBackend
 {
 public:
     FluidSimulationBackendCPU(int x_resolution, int y_resolution);
 
-    void step(double dt);
+    void step(double dt) { };
+    void temp() { build_CSR_matrix_2(); };
 
 protected:
     void init_stencils();
@@ -35,10 +37,10 @@ protected:
     void apply_user_input();
     void build_CSR_matrix();
     void build_CSR_matrix_2();
-    void apply_wall_conditions();
+    void apply_wall_conditions() {};
     void run_BiCSTAB();
-    void update_pressure();
-    void write_heatmap();
+    void update_pressure() {};
+    void write_heatmap() {};
 
     std::shared_ptr<BiCGSTABSolverCpu> solver;
 
@@ -47,15 +49,15 @@ protected:
     
     std::vector<bool> is_wall;
 
-    double dt;
-    double D;  /* Diffusion rate */
-    double mu; /* Viscosities */
-    double lambda;
-    double dx;
-    double dy;
-    double dx_sq;
-    double dy_sq;
-    double cs_sq; /* Squared speed of sound */
+    double dt = 0.00001;
+    double D = 0.05;  /* Diffusion rate */
+    double mu = 0.05; /* Viscosities */
+    double lambda = 0.05;
+    double dx = 0.001;
+    double dy = 0.001;
+    double dx_sq = 0.001 * 0.001;
+    double dy_sq = 0.001 * 0.001;
+    double cs_sq = 340.0 * 340.0; /* Squared speed of sound */
 
     /* Base discretized Navier-Stokes stencil */
     std::vector<StencilCpu> u_type_stencil;

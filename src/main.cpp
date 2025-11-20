@@ -4,6 +4,7 @@
 
 #include "csr_matrix_cpu.hpp"
 #include "BiCGSTAB_solver_CPU.hpp"
+#include "fluid_simulation_backend_cpu.hpp"
 
 int main(void)
 {
@@ -11,7 +12,7 @@ int main(void)
     std::vector<int> col = {0, 3, 1, 0, 2, 3};
     std::vector<int> row_idx = {0, 3, 1, 0, 2, 3};
 
-    std::optional<CSRMatrixCPU> opt_A = CSRMatrixCPU::create(0, 0);
+    std::optional<CSRMatrixCPU> opt_A = CSRMatrixCPU::create(1000, 1000);
     if (!opt_A.has_value())
     {
         std::printf("Failed to create CSR matrix\n");
@@ -47,6 +48,22 @@ int main(void)
     }
     std::printf("\n");
     std::printf("Prec: %lf\n", prec);
+FluidSimulationBackendCPU *simulator;
+    try{
+    simulator = new FluidSimulationBackendCPU(100, 100);
+    std::printf("Managed to create all objects\n");
+    }
+    catch(...){
+        std::printf("Failed to create simulator object\n");
+    }
+    try{
+    simulator->temp();
+    }
+    catch(...){
+        std::printf("Something went wrong\n");
+    }
+
+    std::printf("Build matrix\n");
 
     return 0;
 }
