@@ -40,23 +40,14 @@ FluidSimulationBackendCPU::FluidSimulationBackendCPU(int x_resolution, int y_res
     solver = std::move(s.value());
 
     RHS.resize(FLUID_SIM_EQ_TYPES * width * height);
+    init_stencils();
 }
 
-void FluidSimulationBackendCPU::apply_user_input()
+void FluidSimulationBackendCPU::init_stencils()
 {
-    for (int i = 0; i < width * height; i++)
-    {
-        u[i] += user_u[i];
-        v[i] += user_v[i];
-        rho[i] += user_rho[i];
-    }
-}
-
-void FluidSimulationBackendCPU::build_CSR_matrix()
-{
-    double dt;
     // clang-format off
-    StencilCpu u_type_stencils[] = {
+    /* Create u-type stencil for LHS1 equations */
+    u_type_stencil = new StencilCpu[FLUID_SIM_LHS1_NNZ] {
         {.offset = U_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
@@ -124,8 +115,124 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
             }
         }
     };
-    // clang-format on
 
+    /* Create v-type stencil for LHS2 equations */
+    v_type_stencil = new StencilCpu[FLUID_SIM_LHS2_NNZ] {
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1 / dt + (mu * (-2 / (dx_sq)) - 2 / (dy_sq) - (mu + lambda) * 2 / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)];
+            }
+        },
+        {.offset = V_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return -(mu / (dx_sq)) / solver->x[RHO_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i,j)] / (2 * dx);
+            }
+        },
+        {.offset = V_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return -(mu / (dx_sq)) / solver->x[RHO_OFFSET + AT(i, j)] - solver->x[U_OFFSET + AT(i,j)] / (2 * dx);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return -((2 * mu + lambda) / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i,j)] / (2 * dy);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return -((2 * mu + lambda) / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] - solver->x[V_OFFSET + AT(i,j)] / (2 * dy);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return -1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return -1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return 1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return -1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return cs_sq / (2 * solver->x[RHO_OFFSET + AT(i, j)] * dy);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return -cs_sq / (2 * solver->x[RHO_OFFSET + AT(i, j)] * dy);
+            }
+        }
+    };
+
+    rho_type_stencil = new StencilCpu[FLUID_SIM_LHS3_NNZ]{
+        {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1 / dt + D *(2 / dx_sq + 2 / dy_sq);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return -D / dx_sq;
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return -D / dx_sq;
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return -D / dy_sq;
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return -D / dy_sq;
+            }
+        }
+    };
+    // clang-format on
+}
+
+void FluidSimulationBackendCPU::apply_user_input()
+{
+    for (int i = 0; i < width * height; i++)
+    {
+        u[i] += user_u[i];
+        v[i] += user_v[i];
+        rho[i] += user_rho[i];
+    }
+}
+
+void FluidSimulationBackendCPU::build_CSR_matrix()
+{
     int offset = 0;
     /* LHS1 equations */
     for (int j = 0; j < height; j++)
@@ -135,10 +242,10 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
             int idx = FLUID_SIM_LHS1_NNZ * (j * width + i);
             A->row_ptr[offset + j * width + i] = idx;
             /* Set row using u-type stencil */
-            int p = 0;
-            for(StencilCpu& s : u_type_stencils){
-                A->col[idx + p] = s.offset + (j + s.dj) * width + (i + s.di);
-                p++;
+            for (int p = 0; p < FLUID_SIM_LHS1_NNZ; p++)
+            {
+                A->col[idx + p] = u_type_stencil[p].offset + (j + u_type_stencil[p].dj) * width + (i + u_type_stencil[p].di);
+                A->val[idx + p] = u_type_stencil[p].get_val(i, j);
             }
         }
     }
@@ -149,12 +256,14 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
     {
         for (int i = 0; i < width; i++)
         {
-            A->row_ptr[offset + i * j] = FLUID_SIM_LHS2_NNZ * i * j;
-            /* Cols of U components */
-
-            /* Cols of V components */
-
-            /* Cols of RHO components */
+            int idx = FLUID_SIM_LHS2_NNZ * (j * width + i);
+            A->row_ptr[offset + j * width + i] = idx;
+            /* Set row using u-type stencil */
+            for (int p = 0; p < FLUID_SIM_LHS2_NNZ; p++)
+            {
+                A->col[idx + p] = v_type_stencil[p].offset + (j + v_type_stencil[p].dj) * width + (i + v_type_stencil[p].di);
+                A->val[idx + p] = v_type_stencil[p].get_val(i, j);
+            }
         }
     }
 
@@ -164,12 +273,14 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
     {
         for (int i = 0; i < width; i++)
         {
-            A->row_ptr[offset + i * j] = FLUID_SIM_LHS3_NNZ * i * j;
-            /* Cols of U components */
-
-            /* Cols of V components */
-
-            /* Cols of RHO components */
+            int idx = FLUID_SIM_LHS3_NNZ * (j * width + i);
+            A->row_ptr[offset + j * width + i] = idx;
+            /* Set row using u-type stencil */
+            for (int p = 0; p < FLUID_SIM_LHS3_NNZ; p++)
+            {
+                A->col[idx + p] = rho_type_stencil[p].offset + (j + rho_type_stencil[p].dj) * width + (i + rho_type_stencil[p].di);
+                A->val[idx + p] = rho_type_stencil[p].get_val(i, j);
+            }
         }
     }
 }

@@ -2,6 +2,7 @@
 #define MY_FLUID_SIMULATION_BACKEND_CPU
 
 #include <memory>
+#include <array>
 
 #include "fluid_simulation_backend.hpp"
 #include "csr_matrix_cpu.hpp"
@@ -19,30 +20,46 @@
 
 #define AT(i, j) (j * width) + i
 
-class FluidSimulationBackendCPU : FluidSimulationBackend{
-    public:
-        FluidSimulationBackendCPU(int x_resolution, int y_resolution);
-        
-        void step(double dt);
-    protected:
-        void apply_user_input();
-        void build_CSR_matrix();
-        void run_BiCSTAB();
-        void update_pressure();
-        void write_heatmap();
+class FluidSimulationBackendCPU : FluidSimulationBackend
+{
+public:
+    FluidSimulationBackendCPU(int x_resolution, int y_resolution);
+    ~FluidSimulationBackendCPU()
+    {
+        delete[] u_type_stencil;
+        delete[] v_type_stencil;
+        delete[] rho_type_stencil;
+    }
 
-        std::shared_ptr<BiCGSTABSolverCpu> solver;
+    void step(double dt);
 
-        std::shared_ptr<CSRMatrixCPU> A;
-        std::vector<double> RHS;
+protected:
+    void init_stencils();
 
-        double mu;
-        double lambda;
-        double dx;
-        double dy;
-        double dx_sq;
-        double dy_sq;
-        double cs_sq;
+    void apply_user_input();
+    void build_CSR_matrix();
+    void run_BiCSTAB();
+    void update_pressure();
+    void write_heatmap();
+
+    std::shared_ptr<BiCGSTABSolverCpu> solver;
+
+    std::shared_ptr<CSRMatrixCPU> A;
+    std::vector<double> RHS;
+
+    double dt;
+    double D; /* Diffusion rate */
+    double mu; /* Viscosities */
+    double lambda;
+    double dx;
+    double dy;
+    double dx_sq;
+    double dy_sq;
+    double cs_sq; /* Squared speed of sound */
+
+    StencilCpu *u_type_stencil;
+    StencilCpu *v_type_stencil;
+    StencilCpu *rho_type_stencil;
 };
 
 #endif
