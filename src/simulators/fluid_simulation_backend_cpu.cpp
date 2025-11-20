@@ -292,7 +292,13 @@ void FluidSimulationBackendCPU::apply_user_input()
 
 void FluidSimulationBackendCPU::build_CSR_matrix()
 {
-    /* TODO: There is no need to loop three times here, we can apply 3 stencils at the same time */
+    /* !!! TODO !!!
+        There is absolutley no need to loop this many times,
+    since each stencil works on private part of matrix we can apply
+    all types of stencils at the same time. We also iterate over all
+    cells, so we rither fill out fluid cell or solid wall cell, so logic
+    is in the same place.
+    */
     int offset = 0;
     /* LHS1 equations */
     for (int j = 0; j < height; j++)
@@ -359,10 +365,31 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
     {
         for (int i = 0; i < width; i++)
         {
-            if(is_wall[AT(i, j)]){
-                std::fill(A->val[U_OFFSET + AT(i, j)], A->val[U_OFFSET + AT(i,j) + FLUID_SIM_LHS1_NNZ], 0.0);
-                std::fill(A->val[V_OFFSET + AT(i, j)], A->val[U_OFFSET + AT(i,j) + FLUID_SIM_LHS1_NNZ], 0.0);
-                std::fill(A->val[RHO_OFFSET + AT(i, j)], A->val[U_OFFSET + AT(i,j) + FLUID_SIM_LHS1_NNZ], 0.0);
+            if (!is_wall[AT(i, j)])
+                continue;
+            std::fill(A->val[U_OFFSET + AT(i, j)], A->val[U_OFFSET + AT(i, j) + FLUID_SIM_LHS1_NNZ], 0.0);
+            std::fill(A->val[V_OFFSET + AT(i, j)], A->val[U_OFFSET + AT(i, j) + FLUID_SIM_LHS2_NNZ], 0.0);
+            std::fill(A->val[RHO_OFFSET + AT(i, j)], A->val[U_OFFSET + AT(i, j) + FLUID_SIM_LHS3_NNZ], 0.0);
+
+            int p = 0;
+            for(StencilCpu& s : wall_u_type_stencil){
+                A->col[U_OFFSET + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                A->val[U_OFFSET + p] = s.get_val(i, j);
+                p++;
+            }
+
+            p = 0;
+            for(StencilCpu& s : wall_v_type_stencil){
+                A->col[V_OFFSET + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                A->val[V_OFFSET + p] = s.get_val(i, j);
+                p++;
+            }
+
+            p = 0;
+            for(StencilCpu& s : wall_rho_type_stencil){
+                A->col[RHO_OFFSET + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                A->val[RHO_OFFSET + p] = s.get_val(i, j);
+                p++;
             }
         }
     }
