@@ -218,6 +218,27 @@ void FluidSimulationBackendCPU::init_stencils()
             }
         }
     };
+
+    /* Wall stencils */
+    wall_u_type_stencil = new StencilCpu[1] {
+        {.offset = U_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1.0;
+            }
+        }
+    };
+
+    wall_v_type_stencil = new StencilCpu[1] {
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1.0;
+            }
+        }
+    };
+
+    /* Rho wall stencil needs 4 neighbours, and calc non-walls */
     // clang-format on
 }
 
@@ -283,4 +304,21 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
             }
         }
     }
+
+    /* Apply wall constriants 
+    (since we are sure that wall stencils will not enforce 
+    any non-zeros that could be used previously we still have
+    keep estimates on NNZs and their layout in CSR matrix)
+    */
+    /* 
+    For each wall cell:
+    1. Zero out row for given row
+    2. Apply appropriate stencil
+    3. Set appropriate RHS
+    */
+}
+
+void FluidSimulationBackendCPU::run_BiCSTAB()
+{
+    solver->solve(*A.get(), RHS, 50, 1e-10);
 }

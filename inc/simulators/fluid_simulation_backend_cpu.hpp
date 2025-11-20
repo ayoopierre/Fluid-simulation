@@ -38,6 +38,7 @@ protected:
 
     void apply_user_input();
     void build_CSR_matrix();
+    void apply_wall_conditions();
     void run_BiCSTAB();
     void update_pressure();
     void write_heatmap();
@@ -48,7 +49,7 @@ protected:
     std::vector<double> RHS;
 
     double dt;
-    double D; /* Diffusion rate */
+    double D;  /* Diffusion rate */
     double mu; /* Viscosities */
     double lambda;
     double dx;
@@ -57,9 +58,15 @@ protected:
     double dy_sq;
     double cs_sq; /* Squared speed of sound */
 
+    /* Base discretized Navier-Stokes stencil */
     StencilCpu *u_type_stencil;
     StencilCpu *v_type_stencil;
     StencilCpu *rho_type_stencil;
+
+    /* Wall stencils */
+    StencilCpu *wall_u_type_stencil;
+    StencilCpu *wall_v_type_stencil;
+    StencilCpu *wall_rho_type_stencil;
 };
 
 #endif
