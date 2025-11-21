@@ -5,7 +5,7 @@
 
 class FluidSimulationBackend{
     public:
-        virtual void step(double dt) = 0;
+        virtual void step() = 0;
 
     protected:
         virtual void apply_user_input() = 0;

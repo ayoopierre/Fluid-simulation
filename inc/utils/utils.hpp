@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <vector>
+#include <algorithm>
 #include <cstdio>
 
 #include "csr_matrix_cpu.hpp"
@@ -66,5 +67,84 @@ inline void vec_CSRmat_prod(CSRMatrixCPU &A,
         }
     }
 }
+
+#include <fstream>
+#include <vector>
+#include <string>
+#include <iomanip>
+
+inline bool writeCSRtoCSV(
+    const std::string& filename,
+    const std::vector<double>& values,
+    const std::vector<int>& col_idx,
+    const std::vector<int>& row_ptr,
+    int rows,
+    int cols)
+{
+    std::ofstream out(filename);
+    if (!out.is_open())
+        return false;
+
+    // For each row
+    for (int r = 0; r < rows; ++r)
+    {
+        int start = row_ptr[r];
+        int end   = row_ptr[r + 1];
+        std::printf("ROW %d: NNZs %d\n", r, end - start);
+        int nz    = start;  // pointer to next non-zero in this row
+
+        // For each column
+        for (int c = 0; c < cols; ++c)
+        {
+            auto b_it = col_idx.begin() + start;
+            auto e_it =  col_idx.begin() + end;
+            auto it = std::find(b_it, e_it, c);
+            if(it != e_it){
+                auto v_it = values.begin() + std::distance(it, col_idx.begin());
+                out << *v_it;
+            }
+            else{
+                out << 0;
+            }
+            if(c + 1 < cols)
+                out << ",";
+        }
+        out << "\n";
+    }
+
+    return true;
+}
+
+#include <fstream>
+#include <vector>
+#include <string>
+#include <iomanip>
+
+inline bool writeStateToCSV(
+    const std::string& filename,
+    const std::vector<double>& values,
+    int rows,
+    int cols, int offset)
+{
+    std::ofstream out(filename);
+    if (!out.is_open())
+        return false;
+
+    // For each row
+    for (int r = 0; r < rows; ++r)
+    {
+        // For each column
+        for (int c = 0; c < cols; ++c)
+        {
+            out << values[offset + r * rows + c];
+            if(c + 1 < cols)
+                out << ",";
+        }
+        out << "\n";
+    }
+
+    return true;
+}
+
 
 #endif

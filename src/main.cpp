@@ -8,9 +8,13 @@
 
 int main(void)
 {
-    std::vector<double> val = {12.0, 1.5, 3.0, 2.5, 10.0, 6.0};
-    std::vector<int> col = {0, 3, 1, 0, 2, 3};
-    std::vector<int> row_idx = {0, 3, 1, 0, 2, 3};
+    // std::vector<double> val = {12.0, 1.5, 3.0, 2.5, 10.0, 6.0};
+    // std::vector<int> col = {0, 3, 1, 0, 2, 3};
+    // std::vector<int> row_idx = {0, 3, 1, 0, 2, 3};
+
+    std::vector<double> val = {1.0, 1.0, 1.0, 1.0};
+    std::vector<int> col = {0, 1, 2, 3};
+    std::vector<int> row_idx = {0, 1, 2, 3, 4};
 
     std::optional<CSRMatrixCPU> opt_A = CSRMatrixCPU::create(1000, 1000);
     if (!opt_A.has_value())
@@ -48,22 +52,9 @@ int main(void)
     }
     std::printf("\n");
     std::printf("Prec: %lf\n", prec);
-FluidSimulationBackendCPU *simulator;
-    try{
-    simulator = new FluidSimulationBackendCPU(100, 100);
-    std::printf("Managed to create all objects\n");
-    }
-    catch(...){
-        std::printf("Failed to create simulator object\n");
-    }
-    try{
-    simulator->temp();
-    }
-    catch(...){
-        std::printf("Something went wrong\n");
-    }
 
-    std::printf("Build matrix\n");
+    FluidSimulationBackendCPU simulation(100, 100);
+    simulation.step();
 
     return 0;
 }
