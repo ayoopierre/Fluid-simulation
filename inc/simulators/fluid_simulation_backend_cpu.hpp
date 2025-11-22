@@ -47,31 +47,38 @@ public:
                 solver->x[RHO_OFFSET + AT(i, j)] = (i != 0 && i != width - 1 && j != 0 && j != height - 1) ? 1.0 : 0.0;
             }
         }
+        
+        // build_CSR_matrix();
+        // writeCSRtoCSV("matrix.csv", A->val, A->col, A->row_ptr, FLUID_SIM_EQ_TYPES * width * height,
+        //     FLUID_SIM_EQ_TYPES * width * height);
 
-        writeStateToCSV("pre.csv", solver->x, width, height, 0);
-        writeStateToCSV("rho_pre.csv", solver->x, width, height, RHO_OFFSET);
+        // writeStateToCSV("pre.csv", solver->x, width, height, 0);
+        // writeStateToCSV("rho_pre.csv", solver->x, width, height, RHO_OFFSET);
 
         build_CSR_matrix();
 
         // writeCSRtoCSV("temp.csv", A->val, A->col, A->row_ptr, 3 * width * height, 3 * width * height);
         double prec = solver->solve(*A.get(), RHS, 250, 1e-3);
 
-        writeStateToCSV("post.csv", solver->x, width, height, 0);
-        writeStateToCSV("rho_post.csv", solver->x, width, height, RHO_OFFSET);
+        // writeStateToCSV("post.csv", solver->x, width, height, 0);
+        // writeStateToCSV("rho_post.csv", solver->x, width, height, RHO_OFFSET);
 #ifdef VERBOSE
         std::printf("Managed to get %lf precision\n", prec);
 #endif
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 15; i++)
         {
             build_CSR_matrix();
             prec = solver->solve(*A.get(), RHS, 250, 1e-3);
 
+            std::ostringstream name_matrix;
             std::ostringstream name_u;
             std::ostringstream name_rho;
             name_u << "post" << i << ".csv"; 
             name_rho << "rho_post" << i << ".csv";
+            name_matrix << "matrix" << i << ".csv";
 
+            writeCSRtoCSV(name_matrix.str(), A->val, A->col, A->row_ptr, FLUID_SIM_EQ_TYPES * width * height, FLUID_SIM_EQ_TYPES * width * height);
             writeStateToCSV(name_u.str(), solver->x, width, height, 0);
             writeStateToCSV(name_rho.str(), solver->x, width, height, RHO_OFFSET);
 #ifdef VERBOSE
@@ -98,14 +105,14 @@ protected:
 
     std::vector<bool> is_wall;
 
-    double dt = 0.01;
-    double D = 1.27e-3; /* Diffusion rate */
+    double dt = 0.00001;
+    // double D = 1.27e-3; /* Diffusion rate */
     double mu = 1.5;    /* Viscosities */
     double lambda = 1.78;
-    double dx = 0.01;
-    double dy = 0.01;
-    double dx_sq = 0.01 * 0.01;
-    double dy_sq = 0.01 * 0.01;
+    double dx = 0.005;
+    double dy = 0.005;
+    double dx_sq = 0.005 * 0.005;
+    double dy_sq = 0.005 * 0.005;
     double cs_sq = 100.0 * 100.0; /* Squared speed of sound */
 
     /* Base discretized Navier-Stokes stencil */

@@ -3,6 +3,7 @@
 #include <optional>
 #include <cassert>
 #include <cstdio>
+#include <cmath>
 
 #include <stencil_cpu.hpp>
 
@@ -237,33 +238,70 @@ void FluidSimulationBackendCPU::init_stencils()
         {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return 1 / dt + D *(2 / dx_sq + 2 / dy_sq);
+                double u_tn = solver->x[U_OFFSET + AT(i, j)];
+                double v_tn = solver->x[V_OFFSET + AT(i, j)];
+
+                double max_u_tn = std::max(u_tn, 0.0);
+                double min_u_tn = std::min(u_tn, 0.0);
+
+                double max_v_tn = std::max(v_tn, 0.0);
+                double min_v_tn = std::min(v_tn, 0.0);
+
+                return 1 / dt + (max_u_tn - min_u_tn) / dx + (max_v_tn - min_v_tn) / dy;
             }
         },
         {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -D / dx_sq;
+                double u_tn = solver->x[U_OFFSET + AT(i, j)];
+                return -std::max(u_tn, 0.0) / dx;
             }
         },
         {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -D / dx_sq;
+                double u_tn = solver->x[U_OFFSET + AT(i, j)];
+                return std::min(u_tn, 0.0) / dx;
             }
         },
         {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return -D / dy_sq;
+                double v_tn = solver->x[V_OFFSET + AT(i, j)];
+                return -std::max(v_tn, 0.0) / dy;
             }
         },
-        {.offset = RHO_OFFSET, .di = 1, .dj = 1, 
+        {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
             .get_val = [&](int i, int j)
             {
-                return -D / dy_sq;
+                double v_tn = solver->x[V_OFFSET + AT(i, j)];
+                return std::min(v_tn, 0.0) / dy;
             }
-        }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return -solver->x[RHO_OFFSET + AT(i, j)] / (2 * dx);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return solver->x[RHO_OFFSET + AT(i, j)] / (2 * dx);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return -solver->x[RHO_OFFSET + AT(i, j)] / (2 * dy);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return solver->x[RHO_OFFSET + AT(i, j)] / (2 * dy);
+            }
+        },
     };
 
     /* Wall stencils */
@@ -295,53 +333,48 @@ void FluidSimulationBackendCPU::init_stencils()
                 if(0 < AT(i - 1, j) && AT(i - 1, j) < width * height && !is_wall[AT(i - 1, j)]) fluid_neighbors++;
                 if(0 < AT(i, j + 1) && AT(i, j + 1) < width * height && !is_wall[AT(i, j + 1)]) fluid_neighbors++;
                 if(0 < AT(i, j - 1) && AT(i, j - 1) < width * height && !is_wall[AT(i, j - 1)]) fluid_neighbors++;
-                return fluid_neighbors != 0 ? fluid_neighbors : 1.0;
+                return fluid_neighbors != 0 ? (double)fluid_neighbors : 1.0;
             }
         },
         {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return ( is_wall[AT(i + 1, j)]) ? 0.0f : 1.0f;
+                return ( is_wall[AT(i + 1, j)]) ? 0.0 : -1.0;
             }
         },
         {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return (is_wall[AT(i - 1, j)]) ? 0.0f : 1.0f;
+                return (is_wall[AT(i - 1, j)]) ? 0.0 : -1.0;
             }
         },
         {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
             .get_val = [&](int i, int j)
             {
-                return (is_wall[AT(i, j + 1)]) ? 0.0f : 1.0f;
+                return (is_wall[AT(i, j + 1)]) ? 0.0 : -1.0;
             }
         },
         {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return (is_wall[AT(i, j - 1)]) ? 0.0 : 1.0;
+                return (is_wall[AT(i, j - 1)]) ? 0.0 : -1.0;
             }
         }
     };
     // clang-format on
 
-    std::sort(u_type_stencil.begin(), u_type_stencil.end(), 
-    [this](StencilCpu& s1, StencilCpu& s2) { return AT(s1.di, s1.dj) < AT(s2.di, s2.dj); });
+    auto lbd = [this](StencilCpu &s1, StencilCpu &s2)
+    {
+        return s1.offset + AT(s1.di, s1.dj) < s2.offset + AT(s2.di, s2.dj);
+    };
 
-    std::sort(v_type_stencil.begin(), v_type_stencil.end(), 
-    [this](StencilCpu& s1, StencilCpu& s2) { return AT(s1.di, s1.dj) < AT(s2.di, s2.dj); });
+    std::sort(u_type_stencil.begin(), u_type_stencil.end(), lbd);
+    std::sort(v_type_stencil.begin(), v_type_stencil.end(), lbd);
+    std::sort(rho_type_stencil.begin(), rho_type_stencil.end(), lbd);
 
-    std::sort(rho_type_stencil.begin(), rho_type_stencil.end(), 
-    [this](StencilCpu& s1, StencilCpu& s2) { return AT(s1.di, s1.dj) < AT(s2.di, s2.dj); });
-
-    std::sort(wall_u_type_stencil.begin(), wall_u_type_stencil.end(), 
-    [this](StencilCpu& s1, StencilCpu& s2) { return AT(s1.di, s1.dj) < AT(s2.di, s2.dj); });
-
-    std::sort(wall_v_type_stencil.begin(), wall_v_type_stencil.end(), 
-    [this](StencilCpu& s1, StencilCpu& s2) { return AT(s1.di, s1.dj) < AT(s2.di, s2.dj); });
-
-    std::sort(wall_rho_type_stencil.begin(), wall_rho_type_stencil.end(), 
-    [this](StencilCpu& s1, StencilCpu& s2) { return AT(s1.di, s1.dj) < AT(s2.di, s2.dj); });
+    std::sort(wall_u_type_stencil.begin(), wall_u_type_stencil.end(), lbd);
+    std::sort(wall_v_type_stencil.begin(), wall_v_type_stencil.end(), lbd);
+    std::sort(wall_rho_type_stencil.begin(), wall_rho_type_stencil.end(), lbd);
 }
 
 void FluidSimulationBackendCPU::apply_user_input()
@@ -376,6 +409,11 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
             A->row_ptr[RHO_OFFSET + AT(i, j)] = RHO_OFFSET * FLUID_SIM_LHS1_NNZ +
                                                 AT(i, j) * FLUID_SIM_LHS3_NNZ;
 
+            // std::printf("i: %5d, j: %5d, U: %5d, V: %5d, RHO: %5d\n", i, j,
+            //             A->row_ptr[U_OFFSET + AT(i, j)],
+            //             A->row_ptr[V_OFFSET + AT(i, j)],
+            //             A->row_ptr[RHO_OFFSET + AT(i, j)]);
+
             if (is_wall[AT(i, j)])
             {
                 std::fill(
@@ -402,8 +440,8 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                 for (StencilCpu &s : wall_u_type_stencil)
                 {
                     SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
-                    A->col[AT(i, j) * FLUID_SIM_LHS1_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
-                    A->val[AT(i, j) * FLUID_SIM_LHS1_NNZ + p] = s.get_val(i, j);
+                    A->col[A->row_ptr[U_OFFSET + AT(i, j)] + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                    A->val[A->row_ptr[U_OFFSET + AT(i, j)] + p] = s.get_val(i, j);
                     p++;
                 }
                 /* We can also set RHS1 */
@@ -413,8 +451,8 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                 for (StencilCpu &s : wall_v_type_stencil)
                 {
                     SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
-                    A->col[off1 + AT(i, j) * FLUID_SIM_LHS2_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
-                    A->val[off1 + AT(i, j) * FLUID_SIM_LHS2_NNZ + p] = s.get_val(i, j);
+                    A->col[A->row_ptr[V_OFFSET + AT(i, j)] + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                    A->val[A->row_ptr[V_OFFSET + AT(i, j)] + p] = s.get_val(i, j);
                     p++;
                 }
                 /* We can also set RHS2 */
@@ -424,8 +462,8 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                 for (StencilCpu &s : wall_rho_type_stencil)
                 {
                     SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
-                    A->col[off2 + AT(i, j) * FLUID_SIM_LHS3_NNZ + p] = s.offset + (j + s.dj) * width + (i + s.di);
-                    A->val[off2 + AT(i, j) * FLUID_SIM_LHS3_NNZ + p] = s.get_val(i, j);
+                    A->col[A->row_ptr[RHO_OFFSET + AT(i, j)] + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                    A->val[A->row_ptr[RHO_OFFSET + AT(i, j)] + p] = s.get_val(i, j);
                     p++;
                 }
                 /* We can also set RHS3 */
@@ -439,8 +477,8 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                 for (StencilCpu &s : u_type_stencil)
                 {
                     SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
-                    A->col[A->row_ptr[AT(i, j)] + p] = s.offset + (j + s.dj) * width + (i + s.di);
-                    A->val[A->row_ptr[AT(i, j)] + p] = s.get_val(i, j);
+                    A->col[A->row_ptr[U_OFFSET + AT(i, j)] + p] = s.offset + (j + s.dj) * width + (i + s.di);
+                    A->val[A->row_ptr[U_OFFSET + AT(i, j)] + p] = s.get_val(i, j);
                     p++;
                 }
                 /* Set RHS1 */

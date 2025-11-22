@@ -90,7 +90,6 @@ inline bool writeCSRtoCSV(
     {
         int start = row_ptr[r];
         int end   = row_ptr[r + 1];
-        std::printf("ROW %d: NNZs %d\n", r, end - start);
         int nz    = start;  // pointer to next non-zero in this row
 
         // For each column
@@ -98,13 +97,14 @@ inline bool writeCSRtoCSV(
         {
             auto b_it = col_idx.begin() + start;
             auto e_it =  col_idx.begin() + end;
+
             auto it = std::find(b_it, e_it, c);
             if(it != e_it){
-                auto v_it = values.begin() + std::distance(it, col_idx.begin());
-                out << *v_it;
+                auto v_it = values.begin() + std::distance(col_idx.begin(), it);
+                out << (*v_it);
             }
             else{
-                out << 0;
+                out << 0.0;
             }
             if(c + 1 < cols)
                 out << ",";
