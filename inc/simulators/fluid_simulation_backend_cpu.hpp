@@ -90,6 +90,7 @@ public:
 
 protected:
     void init_stencils();
+    void init_stencils_2();
 
     void apply_user_input();
     void build_CSR_matrix();

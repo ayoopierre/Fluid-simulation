@@ -53,7 +53,7 @@ int main(void)
     std::printf("\n");
     std::printf("Prec: %lf\n", prec);
 
-    FluidSimulationBackendCPU simulation(50, 50);
+    FluidSimulationBackendCPU simulation(10, 10);
     simulation.step();
 
     return 0;

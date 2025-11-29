@@ -94,72 +94,90 @@ FluidSimulationBackendCPU::FluidSimulationBackendCPU(int x_resolution, int y_res
 void FluidSimulationBackendCPU::init_stencils()
 {
     // clang-format off
+    /*
+    NOTE: All coefs are multiplied by dt, so should be RHS parts.
+    This is quite important, since dt is relatively small, by dividing,
+    we move all coefs to much bigger numbers, and we would ideally like to
+    stay near smaller ones where floating point numbers are much denser.
+    */
     /* Create u-type stencil for LHS1 equations */
     u_type_stencil = {
         {.offset = U_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return 1 / dt + (mu * (2 / (dx_sq)) + 2 / (dy_sq) + (mu + lambda) * 2 / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)];
+                double abs_u_term = std::abs(solver->x[U_OFFSET + AT(i, j)]) / dx;
+                double abs_v_term = std::abs(solver->x[V_OFFSET + AT(i, j)]) / dy;
+                return 1.0 + 
+                    dt * ((mu * 2.0 / (dy_sq) + (4.0 * mu + 2.0 * lambda) / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)] +
+                    abs_u_term + abs_v_term);
             }
         },
         {.offset = U_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -(mu / dx_sq + (mu + lambda) / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)] - solver->x[U_OFFSET + AT(i,j)] / (2 * dx);
+                double u_term = std::max(solver->x[U_OFFSET + AT(i, j)], 0.0) / dx;
+                return dt * (-((2.0 * mu + lambda) / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)] -
+                    u_term);
             }
         },
         {.offset = U_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -(mu / dx_sq + (mu + lambda) / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i,j)] / (2 * dx);
+                double u_term = std::min(solver->x[U_OFFSET + AT(i, j)], 0.0) / dx;
+                return dt * (-((2.0 * mu + lambda) / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)] + 
+                    u_term);
             }
         },
         {.offset = U_OFFSET, .di = 0, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return -(mu / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] - solver->x[V_OFFSET + AT(i,j)] / (2 * dy);
+                double v_term = std::max(solver->x[V_OFFSET + AT(i, j)], 0.0) / dx;
+                return dt * (-(mu / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] - 
+                    v_term);
             }
         },
         {.offset = U_OFFSET, .di = 0, .dj = 1, 
             .get_val = [&](int i, int j)
             {
-                return -(mu / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i,j)] / (2 * dy);
-            }
-        },
-        {.offset = V_OFFSET, .di = 1, .dj = 1, 
-            .get_val = [&](int i, int j)
-            {
-                return -1 / (4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+                double v_term = std::min(solver->x[V_OFFSET + AT(i, j)], 0.0) / dx;
+                return dt * (-(mu / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] + 
+                    v_term);
             }
         },
         {.offset = V_OFFSET, .di = -1, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return -1 / (4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+                return -dt * (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = V_OFFSET, .di = 1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return -dt * (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         },
         {.offset = V_OFFSET, .di = -1, .dj = 1, 
             .get_val = [&](int i, int j)
             {
-                return 1 / (4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+                return dt * (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         },
         {.offset = V_OFFSET, .di = 1, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return 1 / (4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
-            }
-        },
-        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
-            .get_val = [&](int i, int j)
-            {
-                return cs_sq / (2 * solver->x[RHO_OFFSET + AT(i, j)] * dx);
+                return dt * (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         },
         {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -cs_sq / (2 * solver->x[RHO_OFFSET + AT(i, j)] * dx);
+                return -dt * cs_sq / (2.0 * dx * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return dt * cs_sq / (2.0 * dx * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         }
     };
@@ -169,67 +187,78 @@ void FluidSimulationBackendCPU::init_stencils()
         {.offset = V_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return 1 / dt + (mu * (-2 / (dx_sq)) - 2 / (dy_sq) - (mu + lambda) * 2 / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)];
+                double u_term = std::abs(solver->x[U_OFFSET + AT(i, j)]) / dx;
+                double v_term = std::abs(solver->x[V_OFFSET + AT(i, j)]) / dy;
+                return 1.0 + dt * ((2.0 * mu / dy_sq + (4.0 * mu + 2.0 * lambda) / dx_sq) +
+                    u_term + v_term);
             }
         },
         {.offset = V_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -(mu / (dx_sq)) / solver->x[RHO_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i,j)] / (2 * dx);
+                double u_term = std::max(solver->x[U_OFFSET + AT(i, j)], 0.0) / dx;
+                return dt * ((-mu / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)] -
+                    u_term);
             }
         },
         {.offset = V_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -(mu / (dx_sq)) / solver->x[RHO_OFFSET + AT(i, j)] - solver->x[U_OFFSET + AT(i,j)] / (2 * dx);
+                double u_term = std::min(solver->x[U_OFFSET + AT(i, j)], 0.0) / dx;
+                return dt * ((-mu / dx_sq) / solver->x[RHO_OFFSET + AT(i, j)] +
+                    u_term);
             }
         },
-        {.offset = V_OFFSET, .di = 0, .dj = -1, 
+        {.offset = V_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -((2 * mu + lambda) / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i,j)] / (2 * dy);
+                double v_term = std::max(solver->x[v_term + AT(i, j)], 0.0) / dx;
+                return dt * ((-(2.0 * mu + lambda) / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] -
+                    v_term);
             }
         },
-        {.offset = V_OFFSET, .di = 0, .dj = 1, 
+        {.offset = V_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return -((2 * mu + lambda) / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] - solver->x[V_OFFSET + AT(i,j)] / (2 * dy);
-            }
-        },
-        {.offset = U_OFFSET, .di = 1, .dj = 1, 
-            .get_val = [&](int i, int j)
-            {
-                return -1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+                double v_term = std::min(solver->x[v_term + AT(i, j)], 0.0) / dx;
+                return dt * ((-(2.0 * mu + lambda) / dy_sq) / solver->x[RHO_OFFSET + AT(i, j)] +
+                    v_term);
             }
         },
         {.offset = U_OFFSET, .di = -1, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return -1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+                return -dt / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         },
-        {.offset = U_OFFSET, .di = -1, .dj = 1, 
+                {.offset = U_OFFSET, .di = 1, .dj = 1, 
             .get_val = [&](int i, int j)
             {
-                return 1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+                return -dt / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         },
         {.offset = U_OFFSET, .di = 1, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return -1 / ( 4 * solver->x[RHO_OFFSET + AT(i, j)] * dx * dy);
+                return dt / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return dt / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return -dt * cs_sq / (2.0 * dy * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         },
         {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
             .get_val = [&](int i, int j)
             {
-                return cs_sq / (2 * solver->x[RHO_OFFSET + AT(i, j)] * dy);
-            }
-        },
-        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
-            .get_val = [&](int i, int j)
-            {
-                return -cs_sq / (2 * solver->x[RHO_OFFSET + AT(i, j)] * dy);
+                return dt * cs_sq / (2.0 * dy * solver->x[RHO_OFFSET + AT(i, j)]);
             }
         }
     };
@@ -302,6 +331,195 @@ void FluidSimulationBackendCPU::init_stencils()
                 return solver->x[RHO_OFFSET + AT(i, j)] / (2 * dy);
             }
         },
+    };
+
+    /* Wall stencils */
+    wall_u_type_stencil =   {
+        {.offset = U_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1.0;
+            }
+        }
+    };
+
+    wall_v_type_stencil =  {
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1.0;
+            }
+        }
+    };
+
+    /* Rho wall stencil needs 4 neighbours, and calc non-walls */
+    wall_rho_type_stencil =  {
+        {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                int fluid_neighbors = 0;
+                if(0 < AT(i + 1, j) && AT(i + 1, j) < width * height && !is_wall[AT(i + 1, j)]) fluid_neighbors++;
+                if(0 < AT(i - 1, j) && AT(i - 1, j) < width * height && !is_wall[AT(i - 1, j)]) fluid_neighbors++;
+                if(0 < AT(i, j + 1) && AT(i, j + 1) < width * height && !is_wall[AT(i, j + 1)]) fluid_neighbors++;
+                if(0 < AT(i, j - 1) && AT(i, j - 1) < width * height && !is_wall[AT(i, j - 1)]) fluid_neighbors++;
+                return fluid_neighbors != 0 ? (double)fluid_neighbors : 1.0;
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return ( is_wall[AT(i + 1, j)]) ? 0.0 : -1.0;
+            }
+        },
+        {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return (is_wall[AT(i - 1, j)]) ? 0.0 : -1.0;
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return (is_wall[AT(i, j + 1)]) ? 0.0 : -1.0;
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return (is_wall[AT(i, j - 1)]) ? 0.0 : -1.0;
+            }
+        }
+    };
+    // clang-format on
+
+    auto lbd = [this](StencilCpu &s1, StencilCpu &s2)
+    {
+        return s1.offset + AT(s1.di, s1.dj) < s2.offset + AT(s2.di, s2.dj);
+    };
+
+    std::sort(u_type_stencil.begin(), u_type_stencil.end(), lbd);
+    std::sort(v_type_stencil.begin(), v_type_stencil.end(), lbd);
+    std::sort(rho_type_stencil.begin(), rho_type_stencil.end(), lbd);
+
+    std::sort(wall_u_type_stencil.begin(), wall_u_type_stencil.end(), lbd);
+    std::sort(wall_v_type_stencil.begin(), wall_v_type_stencil.end(), lbd);
+    std::sort(wall_rho_type_stencil.begin(), wall_rho_type_stencil.end(), lbd);
+}
+
+void FluidSimulationBackendCPU::init_stencils_2()
+{
+    // clang-format off
+    /* Create u-type stencil for LHS1 equations */
+    u_type_stencil = {
+        {.offset = U_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double mu_4_lam2_term = dt * (4 * mu + 2 * lambda) / (dx_sq * solver->x[RHO_OFFSET + AT(i, j)]);
+                double mu_2_term = dt * 2 * mu / (dy_sq * solver->x[RHO_OFFSET + AT(i, j)]);
+                double max_min_u_term = dt * (std::max(solver->x[U_OFFSET + AT(i, j)], 0.0) - std::min(solver->x[U_OFFSET + AT(i, j)], 0.0)) / dx;
+                double max_min_v_term = dt * (std::max(solver->x[V_OFFSET + AT(i, j)], 0.0) - std::min(solver->x[V_OFFSET + AT(i, j)], 0.0)) / dy;
+                return 1.0 + mu_4_lam2_term + mu_2_term + max_min_u_term + max_min_v_term;
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double mu_lam_term = -dt * (mu + lambda) / (dx_sq * solver->x[RHO_OFFSET + AT(i, j)]);
+                double max_term = dt * std::max(solver->x[U_OFFSET + AT(i, j)], 0.0) / dx;
+                return mu_lam_term + max_term;
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double mu_lam_term = -dt * (mu + lambda) / (dx_sq * solver->x[RHO_OFFSET + AT(i, j)]);
+                double min_term = -dt * std::min(solver->x[U_OFFSET + AT(i, j)], 0.0) / dx;
+                return mu_lam_term + min_term;
+            }
+        },
+        {.offset = U_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                double mu_term = -dt * mu / (dy_sq * solver->x[RHO_OFFSET + AT(i, j)]);
+                double max_term = dt * std::max(solver->x[V_OFFSET + AT(i, j)], 0.0) / dy;
+                return mu_term + max_term;
+            }
+        },
+        {.offset = U_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                double mu_term = -dt * mu / (dy_sq * solver->x[RHO_OFFSET + AT(i, j)]);
+                double min_term = -dt * std::min(solver->x[V_OFFSET + AT(i, j)], 0.0) / dy;
+                return mu_term + min_term;
+            }
+        },
+        {.offset = V_OFFSET, .di = -1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return -dt * (lambda + mu) / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = V_OFFSET, .di = 1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return -dt * (lambda + mu) / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = V_OFFSET, .di = -1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return dt * (lambda + mu) / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = V_OFFSET, .di = 1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return dt * (lambda + mu) / (4.0 * dx * dy * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return dt * cs_sq / (2.0 * dx * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return -dt * cs_sq / (2.0 * dx * solver->x[RHO_OFFSET + AT(i, j)]);
+            }
+        },
+    };
+
+    /* Create v-type stencil for LHS2 equations */
+    v_type_stencil = {
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double u_term = std::abs(solver->x[U_OFFSET + AT(i, j)]) / dx;
+                double v_term = std::abs(solver->x[V_OFFSET + AT(i, j)]) / dy;
+                return 1.0 + dt * ((2.0 * mu / dy_sq + (4.0 * mu + 2.0 * lambda) / dx_sq) +
+                    u_term + v_term);
+            }
+        }
+    };
+
+    rho_type_stencil = {
+        {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double u_tn = solver->x[U_OFFSET + AT(i, j)];
+                double v_tn = solver->x[V_OFFSET + AT(i, j)];
+
+                double max_u_tn = std::max(u_tn, 0.0);
+                double min_u_tn = std::min(u_tn, 0.0);
+
+                double max_v_tn = std::max(v_tn, 0.0);
+                double min_v_tn = std::min(v_tn, 0.0);
+
+                return 1 / dt + (max_u_tn - min_u_tn) / dx + (max_v_tn - min_v_tn) / dy;
+            }
+        }
     };
 
     /* Wall stencils */
