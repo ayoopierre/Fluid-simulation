@@ -588,7 +588,87 @@ void FluidSimulationBackendCPU::init_stencils_2()
 
                 return 1.0 + dt * ((std::max(u_i_p2, 0.0) - std::min(u_i_m2, 0.0)) / dx + (std::max(v_j_p2, 0.0) - std::min(v_j_m2, 0.0)) / dy);
             }
-        }
+        },
+        {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double u_i_m2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i - 1, j)]) / 2.0;
+                return -dt * (std::max(u_i_m2, 0.0) / dx);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double u_i_p2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i + 1, j)]) / 2.0;
+                return dt * (std::min(u_i_p2, 0.0) / dx);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                double v_j_m2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET+ AT(i, j - 1)]) / 2.0;
+                return -dt * (std::max(v_j_m2, 0.0) / dy);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                double v_j_p2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET+ AT(i, j + 1)]) / 2.0;
+                return dt * (std::min(v_j_p2, 0.0) / dy);
+            }
+        },
+        {.offset = U_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double u_i_p2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i + 1, j)]) / 2.0;
+                double u_i_m2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i - 1, j)]) / 2.0;
+                double rho_hat_i_p2 = (u_i_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
+                double rho_hat_i_m2 = (u_i_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+                return dt * (rho_hat_i_p2 - rho_hat_i_m2) / (2.0 * dx);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double u_i_m2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i - 1, j)]) / 2.0;
+                double rho_hat_i_m2 = (u_i_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+                return -dt * rho_hat_i_m2 / (2.0 * dx);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double u_i_p2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i + 1, j)]) / 2.0;
+                double rho_hat_i_p2 = (u_i_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
+                return dt * rho_hat_i_p2 / (2.0 * dx);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                double v_j_p2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j + 1)]) / 2.0;
+                double v_j_m2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j - 1)]) / 2.0;
+                double rho_hat_j_p2 = (v_j_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
+                double rho_hat_j_m2 = (v_j_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+                return dt * (rho_hat_j_p2 - rho_hat_j_m2) / (2.0 * dy);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                double v_j_m2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j - 1)]) / 2.0;
+                double rho_hat_j_m2 = (v_j_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+                return -dt * rho_hat_j_m2 / (2.0 * dy);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                double v_j_p2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j + 1)]) / 2.0;
+                double rho_hat_j_p2 = (v_j_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
+                return dt * rho_hat_j_p2 / (2.0 * dy);
+            }
+        },
     };
 
     /* Wall stencils */
