@@ -12,7 +12,7 @@ int main(void)
     // std::vector<int> col = {0, 3, 1, 0, 2, 3};
     // std::vector<int> row_idx = {0, 3, 1, 0, 2, 3};
 
-    std::vector<double> val = {1.0, 1.0, 1.0, 1.0};
+    std::vector<double> val = {5.0, 1.0, 1.0, 1.0};
     std::vector<int> col = {0, 1, 2, 3};
     std::vector<int> row_idx = {0, 1, 2, 3, 4};
 
@@ -32,7 +32,7 @@ int main(void)
     A.row_ptr = std::move(row_idx);
     // std::swap(A.val, val);
 
-    std::vector<double> b = {1.0, 2.0, 3.0, 4.0};
+    std::vector<double> b = {5.0, 2.0, 3.0, 4.0};
 
     std::optional<BiCGSTABSolverCpu> opt_solver = BiCGSTABSolverCpu::create(4);
 
@@ -53,7 +53,7 @@ int main(void)
     std::printf("\n");
     std::printf("Prec: %lf\n", prec);
 
-    FluidSimulationBackendCPU simulation(10, 10);
+    FluidSimulationBackendCPU simulation(100, 100);
     simulation.step();
 
     return 0;

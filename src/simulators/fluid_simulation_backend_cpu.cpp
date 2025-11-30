@@ -35,7 +35,7 @@ FluidSimulationBackendCPU::FluidSimulationBackendCPU(int x_resolution, int y_res
     */
     std::optional a = CSRMatrixCPU::create_shared(
         FLUID_SIM_EQ_TYPES * width * height,
-        FLUID_SIM_MATRIX_NNZ * width * height);
+        FLUID_SIM_MATRIX_NNZ * FLUID_SIM_EQ_TYPES * width * height);
     if (a.has_value())
     {
         A = std::move(a.value());
@@ -84,7 +84,8 @@ FluidSimulationBackendCPU::FluidSimulationBackendCPU(int x_resolution, int y_res
     std::printf("Allocated RHS buffer\n");
 #endif
 
-    init_stencils();
+    init_stencils_2();
+    // init_test_stencils();
 
 #ifdef VERBOSE
     std::printf("Created stencils\n");
@@ -578,20 +579,31 @@ void FluidSimulationBackendCPU::init_stencils_2()
         {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
+                /* If following cell is wall we need to zero out the flux */
                 double u = solver->x[U_OFFSET + AT(i, j)];
+                // double u_i_p2 = is_wall[AT(i + 1, j)] ? 0.0 : (solver->x[U_OFFSET + AT(i + 1, j)] + u) / 2;
+                // double u_i_m2 = is_wall[AT(i - 1, j)] ? 0.0 : (solver->x[U_OFFSET + AT(i - 1, j)] + u) / 2;
                 double u_i_p2 = (solver->x[U_OFFSET + AT(i + 1, j)] + u) / 2;
                 double u_i_m2 = (solver->x[U_OFFSET + AT(i - 1, j)] + u) / 2;
 
+                // std::printf("Face vel: %lf\n", u_i_p2);
+
                 double v = solver->x[V_OFFSET + AT(i, j)];
+                // double v_j_p2 = is_wall[AT(i, j + 1)] ? 0.0 : (solver->x[V_OFFSET + AT(i, j + 1)] + v) / 2;
+                // double v_j_m2 = is_wall[AT(i, j - 1)] ? 0.0 : (solver->x[V_OFFSET + AT(i, j - 1)] + v) / 2;
                 double v_j_p2 = (solver->x[V_OFFSET + AT(i, j + 1)] + v) / 2;
                 double v_j_m2 = (solver->x[V_OFFSET + AT(i, j - 1)] + v) / 2;
 
-                return 1.0 + dt * ((std::max(u_i_p2, 0.0) - std::min(u_i_m2, 0.0)) / dx + (std::max(v_j_p2, 0.0) - std::min(v_j_m2, 0.0)) / dy);
+                double val = 1.0 + dt * ((std::max(u_i_p2, 0.0) - std::min(u_i_m2, 0.0)) / dx + (std::max(v_j_p2, 0.0) - std::min(v_j_m2, 0.0)) / dy);
+                // std::printf("Applying diagonal RHO stencil : %lf\n", val);
+                return val;
             }
         },
         {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i - 1, j)]) return 0.0;
+
                 double u_i_m2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i - 1, j)]) / 2.0;
                 return -dt * (std::max(u_i_m2, 0.0) / dx);
             }
@@ -599,6 +611,8 @@ void FluidSimulationBackendCPU::init_stencils_2()
         {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i + 1, j)]) return 0.0;
+
                 double u_i_p2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i + 1, j)]) / 2.0;
                 return dt * (std::min(u_i_p2, 0.0) / dx);
             }
@@ -606,6 +620,8 @@ void FluidSimulationBackendCPU::init_stencils_2()
         {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i, j - 1)]) return 0.0;
+                
                 double v_j_m2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET+ AT(i, j - 1)]) / 2.0;
                 return -dt * (std::max(v_j_m2, 0.0) / dy);
             }
@@ -613,6 +629,8 @@ void FluidSimulationBackendCPU::init_stencils_2()
         {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i, j + 1)]) return 0.0;
+
                 double v_j_p2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET+ AT(i, j + 1)]) / 2.0;
                 return dt * (std::min(v_j_p2, 0.0) / dy);
             }
@@ -622,40 +640,59 @@ void FluidSimulationBackendCPU::init_stencils_2()
             {
                 double u_i_p2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i + 1, j)]) / 2.0;
                 double u_i_m2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i - 1, j)]) / 2.0;
+
                 double rho_hat_i_p2 = (u_i_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
                 double rho_hat_i_m2 = (u_i_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+
+                //if(is_wall[AT(i + 1, j)]) rho_hat_i_p2 = 0.0;
+                //if(is_wall[AT(i - 1, j)]) rho_hat_i_m2 = 0.0;
+
                 return dt * (rho_hat_i_p2 - rho_hat_i_m2) / (2.0 * dx);
             }
         },
         {.offset = U_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i - 1, j)]) return 0.0;
+
                 double u_i_m2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i - 1, j)]) / 2.0;
                 double rho_hat_i_m2 = (u_i_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+
                 return -dt * rho_hat_i_m2 / (2.0 * dx);
             }
         },
         {.offset = U_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i + 1, j)]) return 0.0;
+
                 double u_i_p2 = (solver->x[U_OFFSET + AT(i, j)] + solver->x[U_OFFSET + AT(i + 1, j)]) / 2.0;
                 double rho_hat_i_p2 = (u_i_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
+
                 return dt * rho_hat_i_p2 / (2.0 * dx);
             }
         },
         {.offset = V_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
+
                 double v_j_p2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j + 1)]) / 2.0;
                 double v_j_m2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j - 1)]) / 2.0;
-                double rho_hat_j_p2 = (v_j_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
-                double rho_hat_j_m2 = (v_j_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+
+                double rho_hat_j_p2 = (v_j_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i, j + 1)];
+                double rho_hat_j_m2 = (v_j_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i, j - 1)];
+
+                //if(is_wall[AT(i, j + 1)]) rho_hat_j_p2 = 0.0;
+                //if(is_wall[AT(i, j - 1)]) rho_hat_j_m2 = 0.0;
+
                 return dt * (rho_hat_j_p2 - rho_hat_j_m2) / (2.0 * dy);
             }
         },
         {.offset = V_OFFSET, .di = 0, .dj = -1, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i, j - 1)]) return 0.0;
+
                 double v_j_m2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j - 1)]) / 2.0;
                 double rho_hat_j_m2 = (v_j_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
                 return -dt * rho_hat_j_m2 / (2.0 * dy);
@@ -664,6 +701,8 @@ void FluidSimulationBackendCPU::init_stencils_2()
         {.offset = V_OFFSET, .di = 0, .dj = 1, 
             .get_val = [&](int i, int j)
             {
+                //if(is_wall[AT(i, j + 1)]) return 0.0;
+
                 double v_j_p2 = (solver->x[V_OFFSET + AT(i, j)] + solver->x[V_OFFSET + AT(i, j + 1)]) / 2.0;
                 double rho_hat_j_p2 = (v_j_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
                 return dt * rho_hat_j_p2 / (2.0 * dy);
@@ -695,40 +734,312 @@ void FluidSimulationBackendCPU::init_stencils_2()
         {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                int fluid_neighbors = 0;
-                if(0 < AT(i + 1, j) && AT(i + 1, j) < width * height && !is_wall[AT(i + 1, j)]) fluid_neighbors++;
-                if(0 < AT(i - 1, j) && AT(i - 1, j) < width * height && !is_wall[AT(i - 1, j)]) fluid_neighbors++;
-                if(0 < AT(i, j + 1) && AT(i, j + 1) < width * height && !is_wall[AT(i, j + 1)]) fluid_neighbors++;
-                if(0 < AT(i, j - 1) && AT(i, j - 1) < width * height && !is_wall[AT(i, j - 1)]) fluid_neighbors++;
-                return fluid_neighbors != 0 ? (double)fluid_neighbors : 1.0;
+                // int fluid_neighbors = 0;
+                // if(0 < AT(i + 1, j) && AT(i + 1, j) < width * height && !is_wall[AT(i + 1, j)]) fluid_neighbors++;
+                // if(0 < AT(i - 1, j) && AT(i - 1, j) < width * height && !is_wall[AT(i - 1, j)]) fluid_neighbors++;
+                // if(0 < AT(i, j + 1) && AT(i, j + 1) < width * height && !is_wall[AT(i, j + 1)]) fluid_neighbors++;
+                // if(0 < AT(i, j - 1) && AT(i, j - 1) < width * height && !is_wall[AT(i, j - 1)]) fluid_neighbors++;
+                // return fluid_neighbors != 0 ? (double)fluid_neighbors : 1.0;
+                return 1.0;
+            }
+        }
+        // {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+        //     .get_val = [&](int i, int j)
+        //     {
+        //         return ( is_wall[AT(i + 1, j)]) ? 0.0 : -1.0;
+        //     }
+        // },
+        // {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
+        //     .get_val = [&](int i, int j)
+        //     {
+        //         return (is_wall[AT(i - 1, j)]) ? 0.0 : -1.0;
+        //     }
+        // },
+        // {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
+        //     .get_val = [&](int i, int j)
+        //     {
+        //         return (is_wall[AT(i, j + 1)]) ? 0.0 : -1.0;
+        //     }
+        // },
+        // {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
+        //     .get_val = [&](int i, int j)
+        //     {
+        //         return (is_wall[AT(i, j - 1)]) ? 0.0 : -1.0;
+        //     }
+        // }
+    };
+    // clang-format on
+
+    /*
+    For CSR format colums should be sorted, since this is
+    done only once for Stencil initialisation we can sort 
+    this during runtime, and dont care about order that we 
+    initialise Stencils with.
+    */
+
+    auto lbd = [this](StencilCpu &s1, StencilCpu &s2)
+    {
+        return s1.offset + AT(s1.di, s1.dj) < s2.offset + AT(s2.di, s2.dj);
+    };
+
+    std::sort(u_type_stencil.begin(), u_type_stencil.end(), lbd);
+    std::sort(v_type_stencil.begin(), v_type_stencil.end(), lbd);
+    std::sort(rho_type_stencil.begin(), rho_type_stencil.end(), lbd);
+
+    std::sort(wall_u_type_stencil.begin(), wall_u_type_stencil.end(), lbd);
+    std::sort(wall_v_type_stencil.begin(), wall_v_type_stencil.end(), lbd);
+    std::sort(wall_rho_type_stencil.begin(), wall_rho_type_stencil.end(), lbd);
+}
+
+void FluidSimulationBackendCPU::init_test_stencils()
+{
+    // clang-format off
+    /* Create u-type stencil for LHS1 equations */
+    u_type_stencil = {
+        {.offset = U_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = -1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = -1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
             }
         },
         {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return ( is_wall[AT(i + 1, j)]) ? 0.0 : -1.0;
+                return AT(i, j);
             }
         },
         {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return (is_wall[AT(i - 1, j)]) ? 0.0 : -1.0;
+                return AT(i, j);
             }
         },
-        {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
+    };
+
+    /* Create v-type stencil for LHS2 equations */
+    v_type_stencil = {
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
             .get_val = [&](int i, int j)
             {
-                return (is_wall[AT(i, j + 1)]) ? 0.0 : -1.0;
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
             }
         },
         {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
             .get_val = [&](int i, int j)
             {
-                return (is_wall[AT(i, j - 1)]) ? 0.0 : -1.0;
+                return AT(i, j);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        }
+
+    };
+
+    rho_type_stencil = {
+        {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = RHO_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = -1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = U_OFFSET, .di = 1, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = -1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+        {.offset = V_OFFSET, .di = 0, .dj = 1, 
+            .get_val = [&](int i, int j)
+            {
+                return AT(i, j);
+            }
+        },
+    };
+
+    /* Wall stencils */
+    wall_u_type_stencil =   {
+        {.offset = U_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1.0;
+            }
+        }
+    };
+
+    wall_v_type_stencil =  {
+        {.offset = V_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1.0;
+            }
+        }
+    };
+
+    /* Rho wall stencil needs 4 neighbours, and calc non-walls */
+    wall_rho_type_stencil =  {
+        {.offset = RHO_OFFSET, .di = 0, .dj = 0, 
+            .get_val = [&](int i, int j)
+            {
+                return 1.0;
             }
         }
     };
     // clang-format on
+
+    /*
+    For CSR format colums should be sorted, since this is
+    done only once for Stencil initialisation we can sort 
+    this during runtime, and dont care about order that we 
+    initialise Stencils with.
+    */
 
     auto lbd = [this](StencilCpu &s1, StencilCpu &s2)
     {
@@ -776,10 +1087,6 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
             A->row_ptr[RHO_OFFSET + AT(i, j)] = RHO_OFFSET * FLUID_SIM_LHS1_NNZ +
                                                 AT(i, j) * FLUID_SIM_LHS3_NNZ;
 
-            // std::printf("i: %5d, j: %5d, U: %5d, V: %5d, RHO: %5d\n", i, j,
-            //             A->row_ptr[U_OFFSET + AT(i, j)],
-            //             A->row_ptr[V_OFFSET + AT(i, j)],
-            //             A->row_ptr[RHO_OFFSET + AT(i, j)]);
 
             if (is_wall[AT(i, j)])
             {
@@ -812,7 +1119,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                     p++;
                 }
                 /* We can also set RHS1 */
-                RHS[U_OFFSET + AT(i, j)] = 0;
+                RHS[U_OFFSET + AT(i, j)] = 0.0;
 
                 p = 0;
                 for (StencilCpu &s : wall_v_type_stencil)
@@ -823,7 +1130,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                     p++;
                 }
                 /* We can also set RHS2 */
-                RHS[V_OFFSET + AT(i, j)] = 0;
+                RHS[V_OFFSET + AT(i, j)] = 0.0;
 
                 p = 0;
                 for (StencilCpu &s : wall_rho_type_stencil)
@@ -834,7 +1141,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                     p++;
                 }
                 /* We can also set RHS3 */
-                RHS[RHO_OFFSET + AT(i, j)] = 0;
+                RHS[RHO_OFFSET + AT(i, j)] = 0.0;
             }
             else
             {
@@ -849,7 +1156,7 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                     p++;
                 }
                 /* Set RHS1 */
-                RHS[U_OFFSET + AT(i, j)] = solver->x[U_OFFSET + AT(i, j)] / dt;
+                RHS[U_OFFSET + AT(i, j)] = solver->x[U_OFFSET + AT(i, j)];
 
                 /* v_type equation : LHS2 */
                 p = 0;
@@ -861,11 +1168,11 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                     p++;
                 }
                 /* Set RHS2 */
-                RHS[V_OFFSET + AT(i, j)] = solver->x[V_OFFSET + AT(i, j)] / dt;
+                RHS[V_OFFSET + AT(i, j)] = solver->x[V_OFFSET + AT(i, j)];
 
                 /* rho_type equation : LHS3 */
                 p = 0;
-                for (StencilCpu &s : v_type_stencil)
+                for (StencilCpu &s : rho_type_stencil)
                 {
                     SKIP_IF_NOT_IN_BOUNDS(i + s.di, j + s.dj);
                     A->col[A->row_ptr[RHO_OFFSET + AT(i, j)] + p] = s.offset + (j + s.dj) * width + (i + s.di);
@@ -873,7 +1180,26 @@ void FluidSimulationBackendCPU::build_CSR_matrix()
                     p++;
                 }
                 /* Set RHS3 */
-                RHS[RHO_OFFSET + AT(i, j)] = solver->x[RHO_OFFSET + AT(i, j)] / dt;
+                double u = solver->x[U_OFFSET + AT(i, j)];
+                double u_i_p2 = (solver->x[U_OFFSET + AT(i + 1, j)] + u) / 2;
+                double u_i_m2 = (solver->x[U_OFFSET + AT(i - 1, j)] + u) / 2;
+
+                double v = solver->x[V_OFFSET + AT(i, j)];
+                double v_j_p2 = (solver->x[V_OFFSET + AT(i, j + 1)] + v) / 2;
+                double v_j_m2 = (solver->x[V_OFFSET + AT(i, j - 1)] + v) / 2;
+
+                double rho_hat_i_p2 = (u_i_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
+                double rho_hat_i_m2 = (u_i_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+                double rho_hat_j_p2 = (v_j_p2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i + 1, j)];
+                double rho_hat_j_m2 = (v_j_m2 > 0.0) ? solver->x[RHO_OFFSET + AT(i, j)] : solver->x[RHO_OFFSET + AT(i - 1, j)];
+
+                // clang-format off
+                RHS[RHO_OFFSET + AT(i, j)] = solver->x[RHO_OFFSET + AT(i, j)] + dt *(
+                    rho_hat_i_p2 * u_i_p2 - rho_hat_i_m2 * u_i_m2
+                ) / dx + dt * (
+                    rho_hat_j_p2 * v_j_p2 - rho_hat_j_m2 * v_j_m2
+                ) / dy;
+                // clang-format on
             }
         }
     }
